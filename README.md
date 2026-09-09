@@ -67,7 +67,7 @@ python busca_preco.py --doctor
 ```
 
 O `--doctor` verifica versão do Python, as cinco dependências, acesso ao portal
-do Amazonas e roda as 74 verificações de lógica. Quando algo falta, ele diz o
+do Amazonas e roda as 88 verificações de lógica. Quando algo falta, ele diz o
 comando exato que resolve.
 
 ## Usar
@@ -162,12 +162,19 @@ real. Elas são o motivo de confiar na saída.
 4. **Não toma preço fora da curva como preço de mercado.** O portal devolveu uma
    nota real de lata de refrigerante a **R$ 0,01** (brinde ou ajuste fiscal).
    Sozinha, ela virava "99% de economia".
-5. **Não inventa preço.** Produto ausente vira `NAO_ENCONTRADO`, nunca
+5. **Não compara com oferta de tamanho desconhecido.** Se a sua planilha diz
+   "500 g" e o portal só diz "PERDIGAO LINGUICA MI", sem gramatura, não há
+   economia a declarar — subtrair as etiquetas transformava R$ 8,75 em "64% de
+   economia". O preço aparece como referência, com o motivo escrito.
+6. **Conta unidade como unidade.** "OVOS BRANCOS 06 UN" contra uma dúzia é
+   comparado por ovo, não por etiqueta. E `1 5L` na descrição do portal é 1,5 L
+   com a vírgula perdida na digitação, não 5 litros.
+7. **Não inventa preço.** Produto ausente vira `NAO_ENCONTRADO`, nunca
    estimativa.
-6. **Não inventa distância.** Linha reta entre coordenadas; sem coordenada, fica
+8. **Não inventa distância.** Linha reta entre coordenadas; sem coordenada, fica
    "n/d". No Amazonas, oferta de outro município leva ressalva de acesso
    fluvial — 300 km em linha reta podem ser um dia de barco.
-7. **Não emite veredito.** Mostra economia e distância; a decisão é de quem lê.
+9. **Não emite veredito.** Mostra economia e distância; a decisão é de quem lê.
 
 Uma coisa que **não** é defeito: o menor preço por litro pode ser um fardo (um
 "24 X 500ML." de R$ 58,00). A conta está certa, e a coluna *Produto encontrado
@@ -208,6 +215,6 @@ requisições reais e o procedimento para recapturá-las com o navegador.
 
 Os portais mudam sem aviso: a Paraíba foi reescrita em Next.js e todo o contrato
 antigo morreu. Ao consertar, **rode `--selftest` antes e depois** e registre em
-`referencias/contratos-portais.md` o que você mediu, com data. As 74
+`referencias/contratos-portais.md` o que você mediu, com data. As 88
 verificações não usam rede e várias são regressões de defeitos que já
 aconteceram — se alguma ficar vermelha, os números do relatório não valem nada.

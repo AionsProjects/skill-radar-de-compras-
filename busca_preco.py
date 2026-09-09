@@ -63,12 +63,25 @@ UNIDADES = {
 }
 
 _RE_MEDIDA = re.compile(
-    r"(?<![\w,\.])(\d{1,5}(?:[.,]\d{1,3})?)\s*"
+    r"(?<![\d,\.])(\d{1,5}(?:[.,]\d{1,3})?)\s*"
     r"(ml|l|lt|litros?|kg|k|g|gr|gramas?|grama|mg|quilo)(?![a-z])",
     re.IGNORECASE,
 )
 # "12x500ml", "6 x 1L" -> multipack
 _RE_MULTI = re.compile(r"(\d{1,3})\s*[x\*]\s*(\d{1,5}(?:[.,]\d{1,3})?)\s*(ml|l|lt|kg|g|gr)\b", re.I)
+
+# Virgula decimal PERDIDA na digitacao: "SUCO DEL VALLE UVA 1 5L" e 1,5 L, nao
+# 1 unidade de 5 L. Visto no Busca Preco AM, onde a descricao e digitada a mao.
+# Lido como 5 L, o preco por litro despenca e inventa economia.
+_RE_DECIMAL_COM_ESPACO = re.compile(
+    r"(?<![\d,\.])(\d{1,2})\s+(\d{1,2})\s*(ml|l|lt|kg|g|gr)(?![a-z])", re.IGNORECASE)
+
+# Contagem de unidades: "06 UN", "12 UNIDADES", "DUZIA", "MEIA DUZIA".
+# Ovos, sabonetes e fardos sao vendidos assim, e comparar 12 ovos com 6 ovos
+# pelo preco de etiqueta gera "67% de economia" que nao existe.
+_RE_CONTAGEM = re.compile(
+    r"(?<![\d,\.])(\d{1,3})\s*(?:un|und|unid|unidades?|uni)(?![a-z])", re.IGNORECASE)
+_RE_DUZIA = re.compile(r"\b(meia\s+d[uú]zia|d[uú]zia)\b", re.IGNORECASE)
 
 
 def sem_acento(texto: str) -> str:
@@ -140,6 +153,23 @@ def extrair_medida(descricao: str) -> Medida:
     a medida sai marcada `ambigua` para o relatorio poder ressalvar.
     """
     texto = normalizar_medida(descricao)
+
+    # Virgula decimal perdida ANTES de tudo: "1 5L" tem de virar "1,5L", senao o
+    # _RE_MEDIDA le "5L" e o volume sai 3x maior do que e.
+    m_dec = _RE_DECIMAL_COM_ESPACO.search(texto)
+    if m_dec and not _RE_MULTI.search(texto):
+        valor = float("%s.%s" % (m_dec.group(1), m_dec.group(2)))
+        base, fator = UNIDADES[m_dec.group(3).lower()]
+        return Medida(valor * fator, base, 1, ambigua=True)
+
+    # Contagem de unidades, quando nao ha volume nem peso na descricao
+    if not _RE_MEDIDA.search(texto) and not _RE_MULTI.search(texto):
+        m_duz = _RE_DUZIA.search(texto)
+        if m_duz:
+            return Medida(6.0 if "MEIA" in m_duz.group(1).upper() else 12.0, "un", 1)
+        m_cont = _RE_CONTAGEM.search(texto)
+        if m_cont:
+            return Medida(float(m_cont.group(1)), "un", 1)
 
     m = _RE_MULTI.search(texto)
     if m:
@@ -1322,6 +1352,16 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
             "(%s) -- provavelmente outro tipo de produto; economia NAO calculada"
             % (medida_ref.base, melhor.medida.base, melhor.descricao[:40])
         )
+    elif preco_atual is not None and medida_ref.total and not melhor.medida.total:
+        # A planilha diz o tamanho, a oferta do portal nao. Subtrair os precos
+        # de etiqueta compara coisas de tamanho desconhecido: foi assim que uma
+        # linguica de R$ 8,75 sem gramatura virou "64% de economia" sobre um
+        # pacote de 500 g. Sem a medida do outro lado nao ha economia a declarar.
+        obs(
+            "a oferta do portal nao informa o tamanho (%s) -- sem isso nao da "
+            "para comparar com %s da sua planilha; economia NAO calculada"
+            % (melhor.descricao[:38], linha["medida_planilha"])
+        )
     elif preco_atual is not None:
         linha["economia_unitaria"] = round(preco_atual - melhor.preco, 4)
         if not comparaveis(medida_ref, melhor.medida):
@@ -1968,6 +2008,64 @@ def selftest() -> int:
 
     r3 = consolidar("CEBOLA", 4.99, [], "Manaus", "AM", None, geocode=False)
     check("sem oferta -> NAO_ENCONTRADO", r3["confianca_match"] == "NAO_ENCONTRADO")
+
+    print("descricoes torpes do portal (vistas em 09/09/2026)")
+    # virgula decimal perdida na digitacao
+    m_esp = extrair_medida("SUCO DEL VALLE UVA 1 5L")
+    check("'1 5L' e 1,5 litro, nao 5 litros",
+          m_esp.total == 1500.0 and m_esp.ambigua, f"-> {m_esp}")
+    check("'1 5L' nao vira 5000 ml", extrair_medida("SUCO DEL VALLE UVA 1 5L").total != 5000.0)
+    check("virgula normal continua funcionando",
+          extrair_medida("REFRIGERANTE COCA COLA 1,5L").total == 1500.0)
+    check("multipack legitimo nao e confundido com decimal perdido",
+          extrair_medida("CERVEJA 12X500ML").total == 6000.0)
+
+    # contagem de unidades
+    check("'OVOS BRANCOS 06 UN' -> 6 unidades",
+          (extrair_medida("OVOS BRANCOS 06 UN").total,
+           extrair_medida("OVOS BRANCOS 06 UN").base) == (6.0, "un"))
+    check("'DUZIA' -> 12 unidades",
+          (extrair_medida("OVOS BRANCOS DUZIA").total,
+           extrair_medida("OVOS BRANCOS DUZIA").base) == (12.0, "un"))
+    check("'MEIA DUZIA' -> 6 unidades",
+          extrair_medida("OVOS MEIA DUZIA").total == 6.0)
+    check("volume tem prioridade sobre contagem",
+          extrair_medida("REFRIGERANTE 2L 6 UN").base == "ml",
+          f"-> {extrair_medida('REFRIGERANTE 2L 6 UN')}")
+
+    # o caso real: duzia contra meia duzia
+    r_ovos = consolidar("OVOS BRANCOS DUZIA", 12.90,
+                        [Oferta("OVOS BRANCOS 06 UN", 4.25, "MERCADINHO", "", "Manaus",
+                                medida=extrair_medida("OVOS BRANCOS 06 UN"))],
+                        "Manaus", "AM", None, geocode=False)
+    check("duzia x meia duzia: equivalente e o dobro, nao a etiqueta",
+          abs(r_ovos["preco_equivalente_na_medida_da_planilha"] - 8.50) < 0.01,
+          f"-> {r_ovos['preco_equivalente_na_medida_da_planilha']}")
+    check("duzia x meia duzia: economia real, nao 67%",
+          abs(r_ovos["economia_unitaria"] - 4.40) < 0.01,
+          f"-> {r_ovos['economia_unitaria']}")
+
+    # oferta sem medida quando a planilha tem: nao inventa economia
+    r_semmed = consolidar("LINGUICA PERDIGAO 500G", 24.90,
+                          [Oferta("PERDIGAO LINGUICA MI", 8.75, "VAREJAO", "", "Manaus",
+                                  medida=extrair_medida("PERDIGAO LINGUICA MI"))],
+                          "Manaus", "AM", None, geocode=False)
+    check("oferta sem gramatura -> economia NAO calculada",
+          r_semmed["economia_unitaria"] is None, f"-> {r_semmed['economia_unitaria']}")
+    check("oferta sem gramatura -> motivo declarado",
+          "nao informa o tamanho" in r_semmed["observacao"],
+          f"-> {r_semmed['observacao'][:60]}")
+    check("mas o preco fica visivel como referencia",
+          r_semmed["menor_preco_estado"] == 8.75)
+
+    # planilha tambem sem medida: comparacao absoluta segue valendo
+    r_ambos = consolidar("CEBOLA GRANEL", 4.99,
+                         [Oferta("CEBOLA GRANEL", 3.99, "FEIRA", "", "Manaus",
+                                 medida=extrair_medida("CEBOLA GRANEL"))],
+                         "Manaus", "AM", None, geocode=False)
+    check("sem medida nos dois lados -> compara absoluto",
+          abs((r_ambos["economia_unitaria"] or 0) - 1.00) < 0.01,
+          f"-> {r_ambos['economia_unitaria']}")
 
     print("alternativas achatadas nas colunas (Alternativa 1/2/3)")
     lojas_alt = [
