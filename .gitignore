@@ -1,0 +1,18 @@
+# saidas de execucao
+*.xlsx.out
+brutos/
+brutos-pb/
+_*.txt
+_*.html
+_*.json
+_*.png
+coletado*.json
+cotacao*
+comparativo*
+out.*
+# perfil de navegador (cookies!)
+_perfil_pb/
+*-perfil-*/
+# python
+__pycache__/
+*.pyc
