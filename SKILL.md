@@ -42,7 +42,7 @@ pip install requests beautifulsoup4 lxml openpyxl reportlab
 python "$BP" --selftest
 ```
 
-88 verificações de lógica pura, sem rede, várias delas regressões de defeitos
+106 verificações de lógica pura, sem rede, várias delas regressões de defeitos
 reais. **Se alguma falhar, pare e corrija antes de consultar os portais** — um
 teste vermelho aqui significa que os números do relatório não valem nada.
 

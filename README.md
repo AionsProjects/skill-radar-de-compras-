@@ -67,7 +67,7 @@ python busca_preco.py --doctor
 ```
 
 O `--doctor` verifica versão do Python, as cinco dependências, acesso ao portal
-do Amazonas e roda as 88 verificações de lógica. Quando algo falta, ele diz o
+do Amazonas e roda as 106 verificações de lógica. Quando algo falta, ele diz o
 comando exato que resolve.
 
 ## Usar
@@ -107,6 +107,27 @@ Sai `cotacao.xlsx` (abas Comparativo, Resumo, Alternativas, Auditoria),
 `cotacao.pdf` e `cotacao.json`. `--brutos` guarda a resposta crua de cada
 consulta, para rastrear qualquer número até o que o portal respondeu.
 
+### O que o PDF responde
+
+Três perguntas de decisão, e nada além disso:
+
+1. **Vale trocar de fornecedor** — os itens mais baratos em outro lugar, com
+   preço, fornecedor, **município** e distância.
+2. **Vale manter o fornecedor atual** — onde o mercado não está melhor do que
+   você já paga.
+3. **Preço subiu no seu próprio fornecedor** — quando o fornecedor da sua
+   planilha aparece no portal cobrando **mais** do que o valor que você
+   registrou. Depende de a coluna de fornecedor existir na planilha e de esse
+   fornecedor ter emitido NFC-e na janela consultada; quando não dá para
+   verificar, o relatório diz isso em vez de afirmar que está tudo bem.
+
+Um quarto bloco lista o que ficou **sem conclusão**, com o motivo real de cada
+caso — sem gramatura no portal, unidades incompatíveis, ou nenhuma venda no
+período. O método, os descartes e o item-a-item completo ficam na planilha.
+
+Para a seção 3 funcionar, inclua uma coluna **Fornecedor Atual** (ou "Loja",
+"Estabelecimento") na sua planilha.
+
 ### Como ler as colunas de alternativa
 
 A aba **Comparativo** traz, na linha de cada item, o menor preço e mais três
@@ -126,6 +147,11 @@ Os dois valores diferem quando a embalagem é outra, e aí a coluna de etiqueta
 unidades custa R$ 58,00 e ainda assim é o mais barato por litro (R$ 2,42 o
 equivalente a 500 ml). Para saber o que você vai pagar no caixa, olhe o preço
 da embalagem; para decidir se vale, olhe o equivalente.
+
+A primeira coluna da aba Comparativo é **Decisao** (`1 TROCAR`, `2 MANTER`,
+`3 SUBIU`, `4 CONFERIR`, `4 SEM PRECO`), colorida e ordenada — a planilha abre
+já na ordem da decisão. Todo preço tem o **município** ao lado, inclusive nas
+alternativas.
 
 A aba **Alternativas** traz até 5 opções por item, uma linha cada, com endereço
 completo, data da venda, código de barras e link do mapa.
@@ -215,6 +241,6 @@ requisições reais e o procedimento para recapturá-las com o navegador.
 
 Os portais mudam sem aviso: a Paraíba foi reescrita em Next.js e todo o contrato
 antigo morreu. Ao consertar, **rode `--selftest` antes e depois** e registre em
-`referencias/contratos-portais.md` o que você mediu, com data. As 88
+`referencias/contratos-portais.md` o que você mediu, com data. As 106
 verificações não usam rede e várias são regressões de defeitos que já
 aconteceram — se alguma ficar vermelha, os números do relatório não valem nada.
