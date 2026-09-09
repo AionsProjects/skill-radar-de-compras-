@@ -109,9 +109,11 @@ consulta, para rastrear qualquer número até o que o portal respondeu.
 
 ### O PDF sai no padrão visual da AIONS
 
-Montserrat para título e número de destaque, Lato para corpo e coluna de valor,
-tinta navy `#121E31`, acento teal `#38A3B0` só na régua e no realce. A logo é a
-oficial, em vetor.
+Segue a **Apresentação Padrão AIONS**: logo no canto superior direito, marcador
+vertical teal nos títulos de seção, cabeçalho de tabela navy em caixa alta,
+régua teal sob o cabeçalho. Montserrat no título e no número de destaque, Lato
+no corpo e na coluna de valor. Tinta navy `#111E30`, acento teal `#37A2AF`,
+medidos no próprio arquivo de marca.
 
 Os arquivos de marca ficam em `marca/`: as quatro fontes reais e
 `logo_aions.py`, gerado de `logo-aions.svg` pelo `gerar_logo_py.py`. **Não

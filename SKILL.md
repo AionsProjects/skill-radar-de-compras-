@@ -307,9 +307,19 @@ resumindo só o valor.
 
 ## Identidade do relatório
 
-O PDF segue o padrão visual da AIONS: Montserrat (título, número de destaque),
-Lato (corpo e coluna de valor), navy `#121E31`, acento teal `#38A3B0` restrito a
-régua e realce, logo oficial em vetor. Assets em `marca/`.
+O PDF segue a **APRESENTAÇÃO PADRÃO AIONS**, medida no arquivo de marca em
+09/09/2026. A paleta do relatório confere com ela: navy `#111E30`, teal
+`#37A2AF`, teal escuro `#2C7987`, superfície `#F8FAFC`, destaque `#F0FDFA`.
+
+Quatro assinaturas vêm de lá e devem ser preservadas:
+
+1. **Logo no canto superior direito**, em todas as páginas.
+2. **Marcador vertical teal** à esquerda de cada título de seção.
+3. **Cabeçalho de tabela** navy com texto branco em caixa alta e tracking.
+4. **Régua teal** sob o masthead e régua fina de fechamento no pé.
+
+Montserrat no título e no número de destaque, Lato no corpo e na coluna de
+valor. Assets em `marca/`.
 
 **Nunca redesenhe a marca nem escolha cor ou fonte "parecida".** Para trocar a
 logo, substitua `marca/logo-aions.svg` e rode `marca/gerar_logo_py.py`.

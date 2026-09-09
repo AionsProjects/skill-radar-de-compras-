@@ -1804,6 +1804,14 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
     est = {
         "h2": ParagraphStyle("h2", fontName=F_TITULO, fontSize=T_H2, leading=14,
                              textColor=NAVY, spaceBefore=13, spaceAfter=2),
+        "h2t": ParagraphStyle("h2t", fontName=F_TITULO, fontSize=T_H2, leading=15,
+                              textColor=NAVY),
+        # cabecalho de tabela: caixa alta com tracking, como na apresentacao
+        "cab": ParagraphStyle("cab", fontName=F_FORTE, fontSize=T_MICRO,
+                              leading=9, textColor=colors.white, charSpace=0.42),
+        "cabd": ParagraphStyle("cabd", fontName=F_FORTE, fontSize=T_MICRO,
+                               leading=9, textColor=colors.white, charSpace=0.42,
+                               alignment=2),
         "nota": ParagraphStyle("nota", fontName=F_CORPO, fontSize=T_CORPO - 0.4,
                                leading=11.5, textColor=SLATE, spaceAfter=5),
         "cel": ParagraphStyle("cel", fontName=F_CORPO, fontSize=T_TAB, leading=9.6,
@@ -1823,32 +1831,41 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
     LARG = doc.width
 
     def masthead(canv, _doc):
-        """Logo, titulo e regua de acento. Fundo branco: a logo tem faceta escura."""
+        """
+        Cabecalho conforme a APRESENTACAO PADRAO AIONS: logo no canto superior
+        DIREITO, titulo navy, linha de contexto em teal, regua fina no rodape.
+        Fundo branco, porque a logo tem faceta escura.
+        """
         canv.saveState()
-        alt_pag = A4[1]
-        largura_logo = 0
-        try:
-            largura_logo = _LOGO.desenhar(canv, MARG, 15 * mm, 15 * mm)
-        except Exception:
-            pass
-        x = MARG + largura_logo + (9 * mm if largura_logo else 0)
+        alt = A4[1]
+        # logo a direita, como em todas as paginas da apresentacao
+        if _LOGO is not None:
+            try:
+                alt_logo = 13.5 * mm
+                larg_logo = alt_logo * _LOGO.LARGURA / _LOGO.ALTURA
+                _LOGO.desenhar(canv, MARG + LARG - larg_logo, 13 * mm, alt_logo)
+            except Exception:
+                pass
         canv.setFillColorRGB(*AIONS_NAVY)
         canv.setFont(F_DISPLAY, 19)
-        canv.drawString(x, alt_pag - 20 * mm, "Radar de compras")
-        canv.setFont(F_CORPO, T_CORPO)
-        canv.setFillColorRGB(*AIONS_SLATE)
-        canv.drawString(x, alt_pag - 25 * mm,
-                        "%s, %d itens conferidos" % (contexto.get("portal", ""),
-                                                     len(resultados)))
+        canv.drawString(MARG, alt - 20 * mm, "Radar de compras")
+        # o subtitulo da apresentacao e teal, nao cinza
         canv.setFont(F_FORTE, T_CORPO)
         canv.setFillColorRGB(*AIONS_TEAL_DK)
-        canv.drawString(x, alt_pag - 29.5 * mm,
+        canv.drawString(MARG, alt - 25.5 * mm,
                         "%s, %s" % (contexto.get("municipio", ""), contexto.get("data", "")))
-        # regua de acento: o unico lugar onde o teal aparece em area
+        canv.setFont(F_CORPO, T_CORPO - 0.4)
+        canv.setFillColorRGB(*AIONS_SLATE)
+        canv.drawString(MARG, alt - 30 * mm,
+                        "%s, %d itens conferidos" % (contexto.get("portal", ""),
+                                                     len(resultados)))
         canv.setStrokeColorRGB(*AIONS_TEAL)
         canv.setLineWidth(2.4)
-        canv.line(MARG, alt_pag - 33 * mm, MARG + LARG, alt_pag - 33 * mm)
-        # rodape: pagina
+        canv.line(MARG, alt - 33.5 * mm, MARG + LARG, alt - 33.5 * mm)
+        # regua de fechamento no pe da pagina, como na apresentacao
+        canv.setStrokeColorRGB(*AIONS_LINE)
+        canv.setLineWidth(0.6)
+        canv.line(MARG, 12.5 * mm, MARG + LARG, 12.5 * mm)
         canv.setFont(F_CORPO, T_MICRO)
         canv.setFillColorRGB(*AIONS_SLATE)
         canv.drawRightString(MARG + LARG, 9 * mm, "%d" % _doc.page)
@@ -1903,6 +1920,23 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         ]))
         hist.append(painel)
 
+    def titulo_secao(texto):
+        """
+        Titulo com marcador vertical teal a esquerda: e a assinatura de secao da
+        APRESENTACAO PADRAO AIONS, e o unico lugar, alem da regua, onde o acento
+        aparece em area.
+        """
+        t = Table([["", Paragraph(texto, est["h2t"])]],
+                  colWidths=[2.6, LARG - 2.6])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), TEAL),
+            ("LEFTPADDING", (0, 0), (0, 0), 0), ("RIGHTPADDING", (0, 0), (0, 0), 0),
+            ("LEFTPADDING", (1, 0), (1, 0), 7), ("RIGHTPADDING", (1, 0), (1, 0), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        return t
+
     def estilo_tabela(n_linhas, destaque=None, principais=()):
         e = [
             ("BACKGROUND", (0, 0), (-1, 0), NAVY),
@@ -1930,15 +1964,22 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         return TableStyle(e)
 
     # ---- 1. trocar, com as outras opcoes de cada item -------------------
-    hist.append(Paragraph("1. Vale trocar de fornecedor: %d %s"
-                          % (len(trocar), "item" if len(trocar) == 1 else "itens"), est["h2"]))
+    hist.append(Spacer(1, 12))
+    hist.append(titulo_secao("1. Vale trocar de fornecedor: %d %s"
+                             % (len(trocar), "item" if len(trocar) == 1 else "itens")))
+    hist.append(Spacer(1, 3))
     if trocar:
         hist.append(Paragraph("A linha destacada é a melhor opção. Abaixo dela, as outras "
                               "opções do mesmo item, ordenadas por preço na sua embalagem.",
                               est["nota"]))
-        COLS = (0.25, 0.09, 0.09, 0.21, 0.15, 0.06, 0.11)
-        CABECALHO = ["Produto e opções", "Você paga", "Preço", "Fornecedor",
-                     "Município", "km", "Economia"]
+        COLS = (0.28, 0.105, 0.095, 0.20, 0.145, 0.055, 0.12)
+        CABECALHO = [Paragraph("PRODUTO E OPÇÕES", est["cab"]),
+                     Paragraph("VOCÊ PAGA", est["cabd"]),
+                     Paragraph("PREÇO", est["cabd"]),
+                     Paragraph("FORNECEDOR", est["cab"]),
+                     Paragraph("MUNICÍPIO", est["cab"]),
+                     Paragraph("KM", est["cabd"]),
+                     Paragraph("ECONOMIA", est["cabd"])]
 
         def cabecalho():
             t = Table([CABECALHO], colWidths=[LARG * x for x in COLS])
@@ -2011,13 +2052,14 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         hist.append(Paragraph("Nenhum item está mais barato em outro fornecedor.", est["nota"]))
 
     # ---- 2. manter -------------------------------------------------------
-    hist.append(Paragraph("2. Vale manter o fornecedor atual: %d %s"
-                          % (len(manter), "item" if len(manter) == 1 else "itens"), est["h2"]))
+    hist.append(Spacer(1, 13))
+    hist.append(titulo_secao("2. Vale manter o fornecedor atual: %d %s"
+                             % (len(manter), "item" if len(manter) == 1 else "itens")))
+    hist.append(Spacer(1, 3))
     if manter:
         hist.append(Paragraph("O melhor preço do mercado é igual ou maior do que você já paga.",
                               est["nota"]))
-        dados = [["Produto", "Você paga", "Melhor do mercado", "Fornecedor", "Município",
-                  "Diferença"]]
+        dados = [[Paragraph("PRODUTO", est["cab"]), Paragraph("VOCÊ PAGA", est["cabd"]), Paragraph("MELHOR DO MERCADO", est["cabd"]), Paragraph("FORNECEDOR", est["cab"]), Paragraph("MUNICÍPIO", est["cab"]), Paragraph("DIFERENÇA", est["cabd"])]]
         for r in sorted(manter, key=lambda r: r["economia_unitaria"] or 0):
             dados.append([
                 Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
@@ -2035,14 +2077,15 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         hist.append(Paragraph("Nenhum item nessa situação.", est["nota"]))
 
     # ---- 3. subiu no proprio fornecedor ---------------------------------
-    hist.append(Paragraph("3. Preço subiu no seu próprio fornecedor: %d %s"
-                          % (len(subiu), "item" if len(subiu) == 1 else "itens"), est["h2"]))
+    hist.append(Spacer(1, 13))
+    hist.append(titulo_secao("3. Preço subiu no seu próprio fornecedor: %d %s"
+                             % (len(subiu), "item" if len(subiu) == 1 else "itens")))
+    hist.append(Spacer(1, 3))
     if subiu:
         hist.append(Paragraph("O seu fornecedor aparece no portal cobrando mais do que o valor "
                               "registrado na sua planilha. Confira se o preço combinado "
                               "ainda vale.", est["nota"]))
-        dados = [["Produto", "Sua planilha", "Mesmo fornecedor hoje", "Fornecedor",
-                  "Município", "Alta"]]
+        dados = [[Paragraph("PRODUTO", est["cab"]), Paragraph("SUA PLANILHA", est["cabd"]), Paragraph("MESMO FORNECEDOR HOJE", est["cabd"]), Paragraph("FORNECEDOR", est["cab"]), Paragraph("MUNICÍPIO", est["cab"]), Paragraph("ALTA", est["cabd"])]]
         for r in subiu:
             dados.append([
                 Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
@@ -2063,10 +2106,11 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
 
     # ---- 4. sem conclusao ------------------------------------------------
     if pendentes:
-        hist.append(Paragraph("4. Sem conclusão: %d %s"
-                              % (len(pendentes), "item" if len(pendentes) == 1 else "itens"),
-                              est["h2"]))
-        dados = [["Produto", "Você paga", "Por quê"]]
+        hist.append(Spacer(1, 13))
+        hist.append(titulo_secao("4. Sem conclusão: %d %s"
+                                 % (len(pendentes), "item" if len(pendentes) == 1 else "itens")))
+        hist.append(Spacer(1, 3))
+        dados = [[Paragraph("PRODUTO", est["cab"]), Paragraph("VOCÊ PAGA", est["cabd"]), Paragraph("POR QUÊ", est["cab"])]]
         for r in pendentes:
             if r["menor_preco_estado"] is None:
                 motivo = "nenhuma venda deste produto no período consultado"
@@ -2085,7 +2129,8 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
     ruido = sum(r.get("ofertas_descartadas_ruido") or 0 for r in resultados)
     fora = sum(r.get("ofertas_descartadas_outlier") or 0 for r in resultados)
     hist.append(Spacer(1, 11))
-    hist.append(Paragraph("Antes de decidir", est["h2"]))
+    hist.append(titulo_secao("Antes de decidir"))
+    hist.append(Spacer(1, 3))
     linhas = [
         "O estabelecimento não é obrigado a manter o preço, e o produto pode estar sem "
         "estoque.",
