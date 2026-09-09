@@ -305,6 +305,21 @@ fardo (um "24 X 500ML." de R$ 58,00). O cálculo está certo, e a coluna
 `Produto encontrado no portal` mostra a embalagem real — não esconda isso
 resumindo só o valor.
 
+## Identidade do relatório
+
+O PDF segue o padrão visual da AIONS: Montserrat (título, número de destaque),
+Lato (corpo e coluna de valor), navy `#121E31`, acento teal `#38A3B0` restrito a
+régua e realce, logo oficial em vetor. Assets em `marca/`.
+
+**Nunca redesenhe a marca nem escolha cor ou fonte "parecida".** Para trocar a
+logo, substitua `marca/logo-aions.svg` e rode `marca/gerar_logo_py.py`.
+
+Coluna de valor usa **Lato**, não Montserrat: os dígitos do Montserrat são
+proporcionais e a coluna desalinha. Isso é medição, não preferência.
+
+Antes de considerar o PDF pronto, rode o gate `cara-de-ia` da skill
+`aions-design` e registre a contagem antes e depois.
+
 ## Saídas
 
 `<saida>.xlsx` (abas Comparativo, Resumo, Auditoria), `<saida>.pdf` (A4) e

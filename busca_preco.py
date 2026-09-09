@@ -40,6 +40,14 @@ from dataclasses import dataclass, field, asdict
 from typing import Any, Iterable
 
 UA = "Mozilla/5.0 (compatible; comparador-preco-sefaz/1.0)"
+
+# Assets de marca em marca/: logo em vetor gerada do SVG oficial. Sem eles o
+# relatorio ainda sai, na fonte de reserva e sem logo, e avisa no rodape.
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "marca"))
+    import logo_aions as _LOGO
+except Exception:
+    _LOGO = None
 CACHE_GEO = os.path.expanduser("~/.cache/comparador_preco_sefaz_geo.json")
 
 # --------------------------------------------------------------------------
@@ -1175,7 +1183,8 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         "descricao_planilha": descricao,
         "termo_consultado": termo_de_busca(descricao),
         "preco_atual": preco_atual,
-        "medida_planilha": f"{medida_ref.total or ''} {medida_ref.base or ''}".strip(),
+        "medida_planilha": (("%g %s" % (medida_ref.total, medida_ref.base))
+                            if medida_ref.total else ""),
         "preco_atual_por_base": preco_por_base(preco_atual, medida_ref),
         "ofertas_encontradas": len(ofertas),
         "confianca_match": "NAO_ENCONTRADO",
@@ -1250,8 +1259,8 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         # preco para este item: NAO_ENCONTRADO, e nenhum numero e reportado.
         obs(
             "nenhum resultado corresponde ao produto: o portal devolveu %d item(ns) "
-            "sem nenhuma palavra em comum (ex.: %s) -- o portal casa por aproximacao "
-            "de texto ('CEBOLA' puxa 'COLA' e 'BOLA'), e tudo foi descartado"
+            "sem nenhuma palavra em comum (ex.: %s). O portal casa por aproximação "
+            "de texto: 'CEBOLA' puxa 'COLA' e 'BOLA', e tudo foi descartado"
             % (len(ruidos), "; ".join(o.descricao[:32] for o in ruidos[:2]) or "-")
         )
         linha["observacao"] = " | ".join(_obs)
@@ -1272,9 +1281,9 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         descartadas = [utilizaveis[i] for i in fora]
         utilizaveis = [o for i, o in enumerate(utilizaveis) if i not in set(fora)]
         obs(
-            "%d oferta(s) descartada(s) por preco fora da distribuicao do produto "
-            "(ex.: %s a R$ %.2f, contra mediana equivalente das outras) -- NFC-e de "
-            "brinde ou ajuste fiscal nao e preco de mercado"
+            "%d oferta(s) descartada(s) por preço fora da distribuição do produto "
+            "(ex.: %s a R$ %.2f, contra a mediana das outras). NFC-e de brinde ou "
+            "ajuste fiscal não é preço de mercado"
             % (len(descartadas), descartadas[0].descricao[:34], descartadas[0].preco)
         )
     linha["confianca_match"] = max(
@@ -1363,8 +1372,8 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         # Criterio: BAIXA nao entra no calculo sem sinalizacao. Aqui ele nem
         # entra: o preco fica visivel como referencia, a economia fica em branco.
         obs(
-            "casamento fraco (BAIXA): nenhuma oferta bate marca e medida. Preco "
-            "exibido apenas como referencia -- economia NAO calculada, conferir a mao"
+            "casamento fraco: nenhuma oferta bate marca e medida. O preço aparece "
+            "como referência e a economia não foi calculada, confira à mão"
         )
     elif (ppb_ref is not None and ppb_melhor is not None and medida_ref.total
           and medida_ref.base == melhor.medida.base):
@@ -1376,16 +1385,17 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         linha["preco_equivalente_na_medida_da_planilha"] = round(equivalente, 4)
         if melhor.medida.ambigua or medida_ref.ambigua:
             obs(
-                "descricao ambigua (unidade x fardo, ex. '500ML - 24X500ML'): lido "
-                "como unidade, que e a leitura conservadora -- conferir a embalagem"
+                "descrição ambígua (unidade ou fardo, ex. '500ML - 24X500ML'): lida "
+                "como unidade, que é a leitura conservadora, confira a embalagem"
             )
     elif (preco_atual is not None and medida_ref.base and melhor.medida.base
           and medida_ref.base != melhor.medida.base):
         # Bases diferentes = categorias diferentes: 1 L de leite liquido nao se
         # compara com 400 g de leite EM PO. Nao ha economia a declarar.
         obs(
-            "unidades incompativeis: a planilha pede %s e a melhor oferta e em %s "
-            "(%s) -- provavelmente outro tipo de produto; economia NAO calculada"
+            "unidades incompatíveis: a planilha pede %s e a melhor oferta é em %s "
+            "(%s), provavelmente outro tipo de produto, então a economia não foi "
+            "calculada"
             % (medida_ref.base, melhor.medida.base, melhor.descricao[:40])
         )
     elif preco_atual is not None and medida_ref.total and not melhor.medida.total:
@@ -1394,16 +1404,16 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         # linguica de R$ 8,75 sem gramatura virou "64% de economia" sobre um
         # pacote de 500 g. Sem a medida do outro lado nao ha economia a declarar.
         obs(
-            "a oferta do portal nao informa o tamanho (%s) -- sem isso nao da "
-            "para comparar com %s da sua planilha; economia NAO calculada"
+            "a oferta do portal não informa o tamanho (%s): sem isso não há como "
+            "comparar com %s da sua planilha, então a economia não foi calculada"
             % (melhor.descricao[:38], linha["medida_planilha"])
         )
     elif preco_atual is not None:
         linha["economia_unitaria"] = round(preco_atual - melhor.preco, 4)
         if not comparaveis(medida_ref, melhor.medida):
             obs(
-                "medidas nao comparaveis (volume/peso divergente ou ausente) -- "
-                "economia calculada sobre preco absoluto, conferir manualmente"
+                "medidas não comparáveis (volume ou peso divergente), então a economia "
+                "saiu do preço de etiqueta, confira manualmente"
             )
     if preco_atual and linha["economia_unitaria"] is not None:
         linha["economia_percentual"] = round(100 * linha["economia_unitaria"] / preco_atual, 2)
@@ -1703,195 +1713,398 @@ def escrever_xlsx(resultados: list[dict], caminho: str, contexto: dict) -> None:
     wb.save(caminho)
 
 
+# --------------------------------------------------------------------------
+#  PDF no padrao AIONS
+# --------------------------------------------------------------------------
+# Identidade herdada do relatorio da Esteira Financeira (mesma sessao, mesmo
+# padrao): Montserrat para display e titulo, Lato para corpo e dado, tinta navy,
+# acento teal so em regua e realce. Os arquivos de marca ficam em `marca/`:
+# fontes reais e a logo em vetor, gerada do SVG de marca. Nada aqui redesenha a
+# marca nem escolhe cor "parecida".
+#
+# Decisao medida, nao estetica: Montserrat tem digitos PROPORCIONAIS, entao toda
+# coluna de valor usa Lato, cujos digitos sao tabulares. Numero em Montserrat
+# aparece so isolado, no destaque de economia.
+
+# tinta e acento, em RGB 0-1 (os mesmos hex do padrao)
+AIONS_NAVY = (0.071, 0.118, 0.192)      # #121E31  tinta principal
+AIONS_TEAL = (0.220, 0.639, 0.690)      # #38A3B0  acento da marca
+AIONS_TEAL_DK = (0.173, 0.475, 0.533)   # #2C7988  acento sobre claro
+AIONS_CLOUD = (0.973, 0.980, 0.988)     # #F8FAFC  superficie
+AIONS_MINT = (0.941, 0.992, 0.980)      # #F0FDFA  superficie de destaque
+AIONS_LINE = (0.886, 0.910, 0.941)      # #E2E8F0  regua
+AIONS_SLATE = (0.392, 0.455, 0.545)     # #64748B  texto secundario
+AIONS_SLATE_DK = (0.278, 0.333, 0.412)  # #475569  texto de tabela
+AIONS_PERIGO = (0.718, 0.110, 0.110)    # #B71C1C  alta de preco, sempre com texto
+
+_FONTES_OK = None
+
+
+def _registrar_fontes():
+    """
+    Registra Montserrat e Lato de `marca/`. Devolve True se as quatro entraram.
+
+    Fonte declarada e nao carregada e acabamento ruim: o documento cairia na
+    fonte do sistema sem ninguem perceber. Por isso o resultado e explicito e o
+    relatorio avisa quando saiu na fonte de reserva.
+    """
+    global _FONTES_OK
+    if _FONTES_OK is not None:
+        return _FONTES_OK
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    pasta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marca")
+    quatro = (("AIONS-Display", "Montserrat-Bold.ttf"),
+              ("AIONS-Titulo", "Montserrat-SemiBold.ttf"),
+              ("AIONS-Corpo", "Lato-Regular.ttf"),
+              ("AIONS-Forte", "Lato-Bold.ttf"))
+    try:
+        for nome, arq in quatro:
+            pdfmetrics.registerFont(TTFont(nome, os.path.join(pasta, arq)))
+        _FONTES_OK = True
+    except Exception:
+        _FONTES_OK = False
+    return _FONTES_OK
+
+
 def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
     """
-    PDF de decisao, em tres blocos: trocar, manter, e o que subiu de preco.
+    Relatorio de decisao no padrao AIONS, em quatro blocos:
+    trocar, manter, subiu no proprio fornecedor, sem conclusao.
 
-    Enxuto de proposito. A explicacao de metodo, a lista de descartes e o
-    item-a-item completo ficam na planilha -- aqui entra so o que muda uma
-    decisao de compra, com fornecedor, municipio e distancia ao lado de cada
-    preco.
+    Cada item de "trocar" e "manter" mostra a melhor opcao e, abaixo, as outras
+    opcoes de fornecedor, para a decisao considerar distancia e nao so preco.
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
-                                    TableStyle, KeepTogether)
+    from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate,
+                                    Paragraph, Spacer, Table, TableStyle, KeepTogether)
 
-    AZUL = colors.HexColor("#1F3864")
-    CINZA = colors.HexColor("#5C5F78")
-    VERDE = colors.HexColor("#1E6B45")
-    VERMELHO = colors.HexColor("#B01C1C")
-    est = getSampleStyleSheet()
-    h1 = ParagraphStyle("h1", parent=est["Title"], fontSize=19, leading=23,
-                        textColor=AZUL, alignment=0, spaceAfter=2)
-    sub = ParagraphStyle("sub", parent=est["Normal"], fontSize=9.5, textColor=CINZA,
-                         leading=13, spaceAfter=12)
-    h2 = ParagraphStyle("h2", parent=est["Heading2"], fontSize=12.5,
-                        textColor=AZUL, spaceBefore=14, spaceAfter=1)
-    nota = ParagraphStyle("nota", parent=est["Normal"], fontSize=8.5, leading=11.5,
-                          textColor=CINZA, spaceAfter=5)
-    cel = ParagraphStyle("cel", parent=est["Normal"], fontSize=8, leading=10)
-    celp = ParagraphStyle("celp", parent=est["Normal"], fontSize=7, leading=9,
-                          textColor=CINZA)
-    fim = ParagraphStyle("fim", parent=est["Normal"], fontSize=8, leading=11.5,
-                         textColor=CINZA, spaceBefore=3)
+    tem_fontes = _registrar_fontes()
+    F_DISPLAY = "AIONS-Display" if tem_fontes else "Helvetica-Bold"
+    F_TITULO = "AIONS-Titulo" if tem_fontes else "Helvetica-Bold"
+    F_CORPO = "AIONS-Corpo" if tem_fontes else "Helvetica"
+    F_FORTE = "AIONS-Forte" if tem_fontes else "Helvetica-Bold"
 
-    doc = SimpleDocTemplate(
-        caminho, pagesize=A4, title="Radar de compras",
-        author="busca-preco",
-        leftMargin=16 * mm, rightMargin=16 * mm, topMargin=14 * mm, bottomMargin=14 * mm,
-    )
+    NAVY = colors.Color(*AIONS_NAVY)
+    TEAL = colors.Color(*AIONS_TEAL)
+    TEAL_DK = colors.Color(*AIONS_TEAL_DK)
+    CLOUD = colors.Color(*AIONS_CLOUD)
+    MINT = colors.Color(*AIONS_MINT)
+    LINE = colors.Color(*AIONS_LINE)
+    SLATE = colors.Color(*AIONS_SLATE)
+    SLATE_DK = colors.Color(*AIONS_SLATE_DK)
+    PERIGO = colors.Color(*AIONS_PERIGO)
+
+    # escala tipografica com poucos degraus, herdada do padrao
+    T_H2, T_CORPO, T_TAB, T_MICRO = 11.5, 8.6, 7.6, 6.6
+
+    est = {
+        "h2": ParagraphStyle("h2", fontName=F_TITULO, fontSize=T_H2, leading=14,
+                             textColor=NAVY, spaceBefore=13, spaceAfter=2),
+        "nota": ParagraphStyle("nota", fontName=F_CORPO, fontSize=T_CORPO - 0.4,
+                               leading=11.5, textColor=SLATE, spaceAfter=5),
+        "cel": ParagraphStyle("cel", fontName=F_CORPO, fontSize=T_TAB, leading=9.6,
+                              textColor=SLATE_DK),
+        "celf": ParagraphStyle("celf", fontName=F_FORTE, fontSize=T_TAB, leading=9.6,
+                               textColor=NAVY),
+        "micro": ParagraphStyle("micro", fontName=F_CORPO, fontSize=T_MICRO,
+                                leading=8.4, textColor=SLATE),
+        "fim": ParagraphStyle("fim", fontName=F_CORPO, fontSize=T_MICRO + 0.6,
+                              leading=10.4, textColor=SLATE, spaceBefore=2.5),
+    }
+
+    MARG = 16 * mm
+    doc = BaseDocTemplate(caminho, pagesize=A4, title="Radar de compras",
+                          author="AIONS", leftMargin=MARG, rightMargin=MARG,
+                          topMargin=MARG, bottomMargin=14 * mm)
+    LARG = doc.width
+
+    def masthead(canv, _doc):
+        """Logo, titulo e regua de acento. Fundo branco: a logo tem faceta escura."""
+        canv.saveState()
+        alt_pag = A4[1]
+        largura_logo = 0
+        try:
+            largura_logo = _LOGO.desenhar(canv, MARG, 15 * mm, 15 * mm)
+        except Exception:
+            pass
+        x = MARG + largura_logo + (9 * mm if largura_logo else 0)
+        canv.setFillColorRGB(*AIONS_NAVY)
+        canv.setFont(F_DISPLAY, 19)
+        canv.drawString(x, alt_pag - 20 * mm, "Radar de compras")
+        canv.setFont(F_CORPO, T_CORPO)
+        canv.setFillColorRGB(*AIONS_SLATE)
+        canv.drawString(x, alt_pag - 25 * mm,
+                        "%s, %d itens conferidos" % (contexto.get("portal", ""),
+                                                     len(resultados)))
+        canv.setFont(F_FORTE, T_CORPO)
+        canv.setFillColorRGB(*AIONS_TEAL_DK)
+        canv.drawString(x, alt_pag - 29.5 * mm,
+                        "%s, %s" % (contexto.get("municipio", ""), contexto.get("data", "")))
+        # regua de acento: o unico lugar onde o teal aparece em area
+        canv.setStrokeColorRGB(*AIONS_TEAL)
+        canv.setLineWidth(2.4)
+        canv.line(MARG, alt_pag - 33 * mm, MARG + LARG, alt_pag - 33 * mm)
+        # rodape: pagina
+        canv.setFont(F_CORPO, T_MICRO)
+        canv.setFillColorRGB(*AIONS_SLATE)
+        canv.drawRightString(MARG + LARG, 9 * mm, "%d" % _doc.page)
+        canv.restoreState()
+
+    quadro = Frame(MARG, 14 * mm, LARG, A4[1] - 36 * mm - 14 * mm, id="corpo",
+                   leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc.addPageTemplates([PageTemplate(id="aions", frames=[quadro], onPage=masthead)])
 
     def brl(v):
         if v is None:
             return "-"
-        return ("R$ %.2f" % v).replace(".", ",")
+        # o sinal vem ANTES do simbolo: "-R$ 0,24", nunca "R$ -0,24"
+        return ("-" if v < 0 else "") + ("R$ %.2f" % abs(v)).replace(".", ",")
 
-    def tabela(dados, larguras, cor_dest):
-        t = Table(dados, colWidths=[doc.width * x for x in larguras], repeatRows=1)
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), AZUL),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F6FA")]),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#E0E2EC")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("TEXTCOLOR", (-1, 1), (-1, -1), cor_dest),
-            ("FONTNAME", (-1, 1), (-1, -1), "Helvetica-Bold"),
-            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-        ]))
-        return t
+    def km(v):
+        return "n/d" if v is None else ("%.1f" % v).replace(".", ",")
 
     por_grupo = {}
     for r in resultados:
         por_grupo.setdefault(r.get("grupo", "SEM_PRECO"), []).append(r)
     trocar = sorted(por_grupo.get("TROCAR", []), key=lambda r: -(r["economia_unitaria"] or 0))
     manter = por_grupo.get("MANTER", [])
-    subiu = por_grupo.get("SUBIU_NO_ATUAL", [])
-    conferir = por_grupo.get("CONFERIR", [])
-    sem_preco = por_grupo.get("SEM_PRECO", [])
+    subiu = sorted(por_grupo.get("SUBIU_NO_ATUAL", []),
+                   key=lambda r: -(r["variacao_no_fornecedor_atual"] or 0))
+    pendentes = por_grupo.get("CONFERIR", []) + por_grupo.get("SEM_PRECO", [])
     total = sum(r["economia_unitaria"] for r in trocar)
 
-    hist = [Paragraph("Radar de compras", h1),
-            Paragraph("%s &nbsp;|&nbsp; referência: %s &nbsp;|&nbsp; %s &nbsp;|&nbsp; "
-                      "%d itens analisados"
-                      % (contexto.get("portal", ""), contexto.get("municipio", ""),
-                         contexto.get("data", ""), len(resultados)), sub)]
+    hist = []
 
-    # ---------------- 1. Trocar de fornecedor compensa ----------------
-    hist.append(Paragraph("1. Vale trocar de fornecedor — %d %s"
-                          % (len(trocar), "item" if len(trocar) == 1 else "itens"), h2))
+    # ---- destaque: o numero que resume a leitura -------------------------
     if trocar:
-        hist.append(Paragraph("Economia de <b>%s por unidade</b> somada. Cada preço abaixo é "
-                              "o equivalente à embalagem da sua planilha." % brl(total), nota))
-        dados = [["Produto", "Você paga", "Melhor preço", "Fornecedor", "Município", "km", "Economia"]]
-        for r in trocar:
-            dados.append([
-                Paragraph(str(r["descricao_planilha"])[:40], cel),
-                brl(r["preco_atual"]),
-                Paragraph("<b>%s</b><br/><font size=6>etiqueta %s · %s</font>"
-                          % (brl(r.get("preco_equivalente_na_medida_da_planilha")),
-                             brl(r["menor_preco_estado"]), (r.get("medida_oferta") or "-")), cel),
-                Paragraph(str(r["estabelecimento_menor_preco"])[:30], cel),
-                Paragraph(str(r["municipio_menor_preco"] or "-")[:20], cel),
-                ("%.1f" % r["distancia_km"]) if r.get("distancia_km") is not None else "n/d",
-                brl(r["economia_unitaria"]),
-            ])
-        hist.append(tabela(dados, (0.26, 0.09, 0.15, 0.20, 0.13, 0.05, 0.12), VERDE))
-    else:
-        hist.append(Paragraph("Nenhum item está mais barato em outro fornecedor.", nota))
+        painel = Table(
+            [[Paragraph('<font name="%s" size="26" color="#121E31">%s</font><br/>'
+                        '<font name="%s" size="7" color="#64748B">economia por unidade, '
+                        'somando %d %s</font>'
+                        % (F_DISPLAY, brl(total), F_CORPO, len(trocar),
+                           "item" if len(trocar) == 1 else "itens"), est["cel"]),
+              Paragraph('<font name="%s" size="7.6" color="#475569">'
+                        'Cada preço abaixo é o equivalente à embalagem da sua planilha. '
+                        'Os valores vêm de NFC-e já emitida: é o que alguém pagou, '
+                        'não oferta vigente.</font>' % F_CORPO, est["cel"])]],
+            colWidths=[LARG * 0.36, LARG * 0.64])
+        painel.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, 0), MINT),
+            ("BACKGROUND", (1, 0), (1, 0), CLOUD),
+            ("LINEBEFORE", (0, 0), (0, 0), 2.4, TEAL),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 9), ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        hist.append(painel)
 
-    # ---------------- 2. Manter o fornecedor atual ----------------
-    hist.append(Paragraph("2. Vale manter o fornecedor atual — %d %s"
-                          % (len(manter), "item" if len(manter) == 1 else "itens"), h2))
+    def estilo_tabela(n_linhas, destaque=None, principais=()):
+        e = [
+            ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), F_FORTE),
+            ("FONTSIZE", (0, 0), (-1, 0), T_MICRO + 0.4),
+            ("FONTNAME", (0, 1), (-1, -1), F_CORPO),
+            ("FONTSIZE", (0, 1), (-1, -1), T_TAB),
+            ("TEXTCOLOR", (0, 1), (-1, -1), SLATE_DK),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+            ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE),
+            ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]
+        for i in principais:                      # linha da melhor opcao do item
+            e.append(("BACKGROUND", (0, i), (-1, i), MINT))
+            e.append(("FONTNAME", (0, i), (-1, i), F_FORTE))
+            e.append(("TEXTCOLOR", (0, i), (-1, i), NAVY))
+        if destaque is not None:
+            e.append(("TEXTCOLOR", (-1, 1), (-1, -1), destaque))
+            e.append(("FONTNAME", (-1, 1), (-1, -1), F_FORTE))
+        return TableStyle(e)
+
+    # ---- 1. trocar, com as outras opcoes de cada item -------------------
+    hist.append(Paragraph("1. Vale trocar de fornecedor: %d %s"
+                          % (len(trocar), "item" if len(trocar) == 1 else "itens"), est["h2"]))
+    if trocar:
+        hist.append(Paragraph("A linha destacada é a melhor opção. Abaixo dela, as outras "
+                              "opções do mesmo item, ordenadas por preço na sua embalagem.",
+                              est["nota"]))
+        COLS = (0.25, 0.09, 0.09, 0.21, 0.15, 0.06, 0.11)
+        CABECALHO = ["Produto e opções", "Você paga", "Preço", "Fornecedor",
+                     "Município", "km", "Economia"]
+
+        def cabecalho():
+            t = Table([CABECALHO], colWidths=[LARG * x for x in COLS])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), F_FORTE),
+                ("FONTSIZE", (0, 0), (-1, 0), T_MICRO + 0.4),
+                ("ALIGN", (1, 0), (2, 0), "RIGHT"),     # Você paga, Preço
+                ("ALIGN", (3, 0), (4, 0), "LEFT"),      # Fornecedor, Município
+                ("ALIGN", (5, 0), (-1, 0), "RIGHT"),    # km, Economia
+                ("TOPPADDING", (0, 0), (-1, 0), 3.5),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 3.5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            return t
+
+        # UMA tabela por item, dentro de KeepTogether: o item e suas opcoes nunca
+        # se separam. Numa tabela unica, o reportlab quebra em qualquer linha, e
+        # as alternativas apareciam orfas no topo da pagina seguinte, sem o
+        # produto a que pertencem.
+        hist.append(cabecalho())
+        for r in trocar:
+            linhas_item = [[
+                Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
+                brl(r["preco_atual"]),
+                brl(r.get("preco_equivalente_na_medida_da_planilha")),
+                Paragraph(str(r["estabelecimento_menor_preco"])[:26], est["celf"]),
+                Paragraph(str(r["municipio_menor_preco"] or "-")[:18], est["celf"]),
+                km(r.get("distancia_km")),
+                brl(r["economia_unitaria"]),
+            ]]
+            comparaveis_alt = [a for a in (r.get("alternativas") or [])[1:]
+                               if a.get("preco_na_medida_da_planilha") is not None]
+            for n, alt in enumerate(comparaveis_alt[:3], 1):
+                ordinal = {1: "2ª", 2: "3ª", 3: "4ª"}[n]
+                linhas_item.append([
+                    Paragraph('<font name="%s" color="#475569">%s opção</font>'
+                              '&nbsp;<font color="#64748B">%s</font>'
+                              % (F_FORTE, ordinal, str(alt.get("embalagem") or "")),
+                              est["micro"]),
+                    "",
+                    Paragraph(brl(alt.get("preco_na_medida_da_planilha")), est["micro"]),
+                    Paragraph(str(alt.get("fornecedor") or "-")[:26], est["micro"]),
+                    Paragraph(str(alt.get("municipio") or "-")[:18], est["micro"]),
+                    Paragraph(km(alt.get("distancia_km")), est["micro"]),
+                    Paragraph(brl(alt.get("economia_vs_atual")), est["micro"]),
+                ])
+            t = Table(linhas_item, colWidths=[LARG * x for x in COLS])
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), MINT),
+                ("FONTNAME", (0, 0), (-1, 0), F_FORTE),
+                ("TEXTCOLOR", (0, 0), (-1, 0), NAVY),
+                ("TEXTCOLOR", (-1, 0), (-1, 0), TEAL_DK),
+                ("FONTNAME", (0, 1), (-1, -1), F_CORPO),
+                ("FONTSIZE", (0, 0), (-1, -1), T_TAB),
+                ("TEXTCOLOR", (0, 1), (-1, -1), SLATE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (1, 0), (2, -1), "RIGHT"),
+                ("ALIGN", (5, 0), (-1, -1), "RIGHT"),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.5, LINE),
+                ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            hist.append(KeepTogether(t))
+    else:
+        hist.append(Paragraph("Nenhum item está mais barato em outro fornecedor.", est["nota"]))
+
+    # ---- 2. manter -------------------------------------------------------
+    hist.append(Paragraph("2. Vale manter o fornecedor atual: %d %s"
+                          % (len(manter), "item" if len(manter) == 1 else "itens"), est["h2"]))
     if manter:
         hist.append(Paragraph("O melhor preço do mercado é igual ou maior do que você já paga.",
-                              nota))
-        dados = [["Produto", "Você paga", "Melhor do mercado", "Fornecedor", "Município", "Diferença"]]
+                              est["nota"]))
+        dados = [["Produto", "Você paga", "Melhor do mercado", "Fornecedor", "Município",
+                  "Diferença"]]
         for r in sorted(manter, key=lambda r: r["economia_unitaria"] or 0):
             dados.append([
-                Paragraph(str(r["descricao_planilha"])[:40], cel),
+                Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
                 brl(r["preco_atual"]),
                 brl(r.get("preco_equivalente_na_medida_da_planilha") or r["menor_preco_estado"]),
-                Paragraph(str(r["estabelecimento_menor_preco"])[:30], cel),
-                Paragraph(str(r["municipio_menor_preco"] or "-")[:20], cel),
+                Paragraph(str(r["estabelecimento_menor_preco"])[:26], est["cel"]),
+                Paragraph(str(r["municipio_menor_preco"] or "-")[:18], est["cel"]),
                 brl(r["economia_unitaria"]),
             ])
-        hist.append(tabela(dados, (0.28, 0.10, 0.16, 0.22, 0.14, 0.10), CINZA))
+        t = Table(dados, colWidths=[LARG * x for x in (0.28, 0.10, 0.15, 0.21, 0.16, 0.10)],
+                  repeatRows=1)
+        t.setStyle(estilo_tabela(len(dados), SLATE))
+        hist.append(t)
     else:
-        hist.append(Paragraph("Nenhum item nessa situação.", nota))
+        hist.append(Paragraph("Nenhum item nessa situação.", est["nota"]))
 
-    # ---------------- 3. Subiu no proprio fornecedor atual ----------------
-    hist.append(Paragraph("3. Preço subiu no seu próprio fornecedor — %d %s"
-                          % (len(subiu), "item" if len(subiu) == 1 else "itens"), h2))
+    # ---- 3. subiu no proprio fornecedor ---------------------------------
+    hist.append(Paragraph("3. Preço subiu no seu próprio fornecedor: %d %s"
+                          % (len(subiu), "item" if len(subiu) == 1 else "itens"), est["h2"]))
     if subiu:
-        hist.append(Paragraph("O seu fornecedor aparece no portal cobrando <b>mais</b> do que o "
-                              "valor registrado na sua planilha. Confira se o preço combinado "
-                              "ainda vale.", nota))
-        dados = [["Produto", "Sua planilha", "Mesmo fornecedor hoje", "Fornecedor", "Município", "Alta"]]
-        for r in sorted(subiu, key=lambda r: -(r["variacao_no_fornecedor_atual"] or 0)):
+        hist.append(Paragraph("O seu fornecedor aparece no portal cobrando mais do que o valor "
+                              "registrado na sua planilha. Confira se o preço combinado "
+                              "ainda vale.", est["nota"]))
+        dados = [["Produto", "Sua planilha", "Mesmo fornecedor hoje", "Fornecedor",
+                  "Município", "Alta"]]
+        for r in subiu:
             dados.append([
-                Paragraph(str(r["descricao_planilha"])[:40], cel),
+                Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
                 brl(r["preco_atual"]),
                 brl(r["preco_fornecedor_atual_no_portal"]),
-                Paragraph(str(r.get("fornecedor_atual") or "-")[:30], cel),
-                Paragraph(str(r["municipio_menor_preco"] or "-")[:20], cel),
+                Paragraph(str(r.get("fornecedor_atual") or "-")[:26], est["cel"]),
+                Paragraph(str(r["municipio_menor_preco"] or "-")[:18], est["cel"]),
                 "+" + brl(r["variacao_no_fornecedor_atual"]),
             ])
-        hist.append(tabela(dados, (0.28, 0.11, 0.18, 0.20, 0.13, 0.10), VERMELHO))
+        t = Table(dados, colWidths=[LARG * x for x in (0.27, 0.11, 0.17, 0.22, 0.14, 0.09)],
+                  repeatRows=1)
+        t.setStyle(estilo_tabela(len(dados), PERIGO))
+        hist.append(t)
     else:
-        hist.append(Paragraph(
-            "Nenhum item nessa situação — o que só é conclusivo para os fornecedores da sua "
-            "planilha que aparecem no portal. Quem não emitiu NFC-e na janela consultada não "
-            "pode ser verificado.", nota))
+        hist.append(Paragraph("Nenhum item nessa situação, o que só vale para os fornecedores "
+                              "da sua planilha que aparecem no portal. Quem não emitiu NFC-e "
+                              "no período não pode ser verificado.", est["nota"]))
 
-    # ---------------- 4. Sem conclusao ----------------
-    pendentes = conferir + sem_preco
+    # ---- 4. sem conclusao ------------------------------------------------
     if pendentes:
-        hist.append(Paragraph("4. Sem conclusão — %d %s" % (len(pendentes),
-                    "item" if len(pendentes) == 1 else "itens"), h2))
+        hist.append(Paragraph("4. Sem conclusão: %d %s"
+                              % (len(pendentes), "item" if len(pendentes) == 1 else "itens"),
+                              est["h2"]))
         dados = [["Produto", "Você paga", "Por quê"]]
         for r in pendentes:
-            # o motivo e o APURADO na consolidacao, nao um texto generico: num
-            # item e "sem gramatura", noutro e "g contra ml". Escrever o motivo
-            # errado no relatorio e pior do que nao escrever nenhum.
             if r["menor_preco_estado"] is None:
                 motivo = "nenhuma venda deste produto no período consultado"
             else:
                 partes = [t.strip() for t in str(r.get("observacao") or "").split("|")]
                 motivo = partes[-1] if (partes and partes[-1]) else (
                     "sem base para comparar com a embalagem da sua planilha")
-            dados.append([Paragraph(str(r["descricao_planilha"])[:40], cel),
-                          brl(r["preco_atual"]), Paragraph(motivo, celp)])
-        hist.append(tabela(dados, (0.28, 0.10, 0.62), CINZA))
+            dados.append([Paragraph(str(r["descricao_planilha"])[:44], est["celf"]),
+                          brl(r["preco_atual"]),
+                          Paragraph(motivo.replace("--", ":"), est["micro"])])
+        t = Table(dados, colWidths=[LARG * x for x in (0.27, 0.10, 0.63)], repeatRows=1)
+        t.setStyle(estilo_tabela(len(dados)))
+        hist.append(t)
 
-    # ---------------- rodape: o minimo que muda a decisao ----------------
+    # ---- ressalvas: o minimo que muda a decisao -------------------------
     ruido = sum(r.get("ofertas_descartadas_ruido") or 0 for r in resultados)
     fora = sum(r.get("ofertas_descartadas_outlier") or 0 for r in resultados)
-    baixa = [r for r in resultados if r["confianca_match"] == "BAIXA"]
-    hist.append(Spacer(1, 10))
-    linhas_fim = [
-        "Os preços vêm de NFC-e já emitida: é o que alguém pagou no passado recente, não "
-        "oferta vigente. O estabelecimento não é obrigado a manter.",
-        "A economia é <b>por unidade</b> e não inclui frete nem diferença de ICMS. "
-        "Distância em linha reta." + (" No Amazonas, confirme o acesso: muitos municípios "
-        "só têm ligação fluvial." if contexto.get("uf") == "AM" else ""),
+    hist.append(Spacer(1, 11))
+    hist.append(Paragraph("Antes de decidir", est["h2"]))
+    linhas = [
+        "O estabelecimento não é obrigado a manter o preço, e o produto pode estar sem "
+        "estoque.",
+        "A economia é por unidade. Multiplique pelas quantidades que você compra.",
+        "Não inclui frete nem diferença de ICMS. Distância em linha reta." +
+        (" No Amazonas, confirme o acesso: muitos municípios só têm ligação fluvial."
+         if contexto.get("uf") == "AM" else ""),
     ]
     if ruido or fora:
-        linhas_fim.append("Descartados antes das contas: <b>%d</b> resultado(s) de outro produto "
-                          "e <b>%d</b> com preço fora da distribuição (nota de brinde ou erro de "
-                          "digitação). Detalhe na aba Auditoria da planilha." % (ruido, fora))
-    if baixa:
-        linhas_fim.append("<b>%d item(ns)</b> com casamento fraco não tiveram economia calculada: %s."
-                          % (len(baixa), ", ".join(str(r["descricao_planilha"])[:28] for r in baixa[:5])))
-    linhas_fim.append("Este relatório não recomenda trocar de fornecedor: mostra preço, "
-                      "distância e origem lado a lado.")
-    for t in linhas_fim:
-        hist.append(Paragraph("• " + t, fim))
+        linhas.append("Descartados antes das contas: %d resultado(s) de outro produto e %d "
+                      "com preço fora da distribuição, como nota de brinde ou erro de "
+                      "digitação. Detalhe na aba Auditoria da planilha." % (ruido, fora))
+    if not tem_fontes:
+        linhas.append("Este PDF saiu na fonte de reserva: os arquivos de marca não foram "
+                      "encontrados em marca/.")
+    linhas.append("Este relatório não recomenda trocar de fornecedor. Ele mostra preço, "
+                  "distância e origem lado a lado.")
+    for t in linhas:
+        hist.append(Paragraph(t, est["fim"]))
 
     doc.build(hist)
 
@@ -2004,7 +2217,8 @@ def selftest() -> int:
     check("so BAIXA -> confianca BAIXA", r_baixa["confianca_match"] == "BAIXA")
     check("so BAIXA -> economia NAO calculada", r_baixa["economia_unitaria"] is None,
           f"-> {r_baixa['economia_unitaria']}")
-    check("so BAIXA -> sinalizado na observacao", "BAIXA" in r_baixa["observacao"])
+    check("so BAIXA -> sinalizado na observacao",
+          "casamento fraco" in r_baixa["observacao"], f"-> {r_baixa['observacao'][:50]}")
 
     print("deteccao de colunas")
     cols = detectar_colunas(["Produto", "Preço Atual", "EAN", "Unidade"])
@@ -2081,7 +2295,7 @@ def selftest() -> int:
     check("oferta sem gramatura -> economia NAO calculada",
           r_semmed["economia_unitaria"] is None, f"-> {r_semmed['economia_unitaria']}")
     check("oferta sem gramatura -> motivo declarado",
-          "nao informa o tamanho" in r_semmed["observacao"],
+          "informa o tamanho" in r_semmed["observacao"],
           f"-> {r_semmed['observacao'][:60]}")
     check("mas o preco fica visivel como referencia",
           r_semmed["menor_preco_estado"] == 8.75)
@@ -2311,7 +2525,7 @@ def selftest() -> int:
     check("outlier contabilizado", r_out["ofertas_descartadas_outlier"] == 1,
           f"-> {r_out['ofertas_descartadas_outlier']}")
     check("descarte de outlier declarado na observacao",
-          "fora da distribuicao" in r_out["observacao"], f"-> {r_out['observacao'][:70]}")
+          "fora da distribui" in r_out["observacao"], f"-> {r_out['observacao'][:70]}")
     check("sem o outlier, nao ha economia de 99%",
           (r_out["economia_percentual"] or 0) < 90, f"-> {r_out['economia_percentual']}")
 

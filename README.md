@@ -107,12 +107,31 @@ Sai `cotacao.xlsx` (abas Comparativo, Resumo, Alternativas, Auditoria),
 `cotacao.pdf` e `cotacao.json`. `--brutos` guarda a resposta crua de cada
 consulta, para rastrear qualquer número até o que o portal respondeu.
 
+### O PDF sai no padrão visual da AIONS
+
+Montserrat para título e número de destaque, Lato para corpo e coluna de valor,
+tinta navy `#121E31`, acento teal `#38A3B0` só na régua e no realce. A logo é a
+oficial, em vetor.
+
+Os arquivos de marca ficam em `marca/`: as quatro fontes reais e
+`logo_aions.py`, gerado de `logo-aions.svg` pelo `gerar_logo_py.py`. **Não
+edite o `.py` da logo à mão e não redesenhe a marca:** troque o SVG e rode o
+gerador. Se os arquivos de `marca/` faltarem, o relatório ainda sai, na fonte
+de reserva, e avisa isso no rodapé.
+
+Detalhe medido, não estético: Montserrat tem dígitos **proporcionais**, então
+toda coluna de valor usa Lato, cujos dígitos são tabulares. Número em
+Montserrat aparece só isolado, no destaque de economia. Sem isso as colunas de
+preço desalinham.
+
 ### O que o PDF responde
 
 Três perguntas de decisão, e nada além disso:
 
-1. **Vale trocar de fornecedor** — os itens mais baratos em outro lugar, com
-   preço, fornecedor, **município** e distância.
+1. **Vale trocar de fornecedor**: os itens mais baratos em outro lugar. A linha
+   destacada é a melhor opção e, abaixo dela, **as outras opções do mesmo
+   item**, com fornecedor, município e distância, ordenadas por preço na sua
+   embalagem. Opção sem preço comparável não entra: não ajuda a decidir.
 2. **Vale manter o fornecedor atual** — onde o mercado não está melhor do que
    você já paga.
 3. **Preço subiu no seu próprio fornecedor** — quando o fornecedor da sua

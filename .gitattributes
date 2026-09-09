@@ -9,3 +9,6 @@
 *.gitignore text eol=lf
 *.gitattributes text eol=lf
 *.xlsx binary
+*.ttf binary
+*.pdf binary
+*.svg text eol=lf
