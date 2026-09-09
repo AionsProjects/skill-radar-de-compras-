@@ -175,59 +175,38 @@ headers dos dois: content-type: application/json
 
 Os headers capturados são **reutilizáveis** para as chamadas seguintes.
 
-### 4. Colete, uma consulta por vez
+### 4. Colete: o app faz a chamada, você lê a resposta
 
-Com as duas rotas e os headers, itere os termos de `termos.json` em **um**
-`javascript_tool`, com pausa de 1,5 s. É infraestrutura pública — não martele.
+**Não tente iterar os termos com chamadas próprias.** Medido em 09/09/2026: os
+headers `request-hac` e `request-id` são **nonce de uso único** e devolvem 401
+até quando repetidos com o corpo idêntico. Reproduzir a geração do `hac` seria
+reverter proteção anti-abuso, e esta skill não faz isso.
 
-```js
-const S = window.__cap.find(c => String(c.corpo).includes('content'));
-const P = window.__cap.find(c => String(c.corpo).includes('"id"'));
-const TERMOS = ["DETERGENTE YPE NEUTRO", "ARROZ TIO JOAO"];   // de termos.json
-const {lat, lng, regionId} = JSON.parse(P.corpo);
-const espera = ms => new Promise(r => setTimeout(r, ms));
-const post = async (rota, hdrs, obj) => {
-  const r = await fetch(rota, {method: 'POST', headers: hdrs,
-                               body: JSON.stringify(obj), credentials: 'include'});
-  return r.ok ? r.json() : {erro: r.status};
-};
-const saida = {};
-for (const termo of TERMOS) {
-  const sug = await post(S.url, S.hdrs, {content: termo});
-  const cand = ((sug.data) || [])[0];
-  if (!cand) { saida[termo] = {produto: '', gtin: '', lojas: []}; await espera(1500); continue; }
-  await espera(1500);
-  const pr = await post(P.url, P.hdrs, {id: cand.id, distance: 10, page: 1,
-                          sort: 'lowestPrice', lat, lng, regionId});
-  const d = pr.data || {};
-  const lista = d.items || d.products || d.establishments || d.results || [];
-  saida[termo] = {
-    produto: cand.name, gtin: String(cand.id),
-    url: location.origin + '/produtos/' + cand.slug,
-    lojas_vistas: (d.pagination || {}).totalItems || lista.length,
-    lojas: lista.map(x => [
-      x.name || x.establishment || (x.store || {}).name || '',
-      x.price ?? x.value ?? x.lowestPrice,
-      x.date || x.saleDate || '',
-      x.district || x.neighborhood || '',
-      x.city || (x.address || {}).city || ''])
-  };
-  await espera(1500);
-}
-JSON.stringify(saida);
-```
+O que funciona: instalar um hook em `window.fetch` que guarda a **resposta** das
+chamadas que o próprio site faz, e então navegar pela interface. A chave da
+lista de lojas é **`stores`** (não `items` nem `products`), e cada loja traz
+`name, price, date, district, city, lat, lng, distance, street, gtin`.
 
-**Confira a forma da lista antes de confiar no `map`**: os nomes de campo acima
-são tentativas. Rode primeiro `Object.keys(d)` e inspecione um item; ajuste, e
-anote o que encontrou em `referencias/contratos-portais.md`.
+O hook completo está em `referencias/contratos-portais.md`. Instale-o e, por
+termo: clique no campo de busca, digite, espere 6 s, clique na 1ª sugestão,
+espere 9 s. Ele grava sozinho em `localStorage.__pb`.
 
-**Alternativa que sempre funciona**: extrair do DOM da página do produto. A
-página lista as lojas com nome, preço, data e bairro/cidade, e foi assim que a
-primeira coleta real saiu. Navegue para `/produtos/<slug>`, role até o fim para
-carregar a lista, e leia os cards — o extrator está em
-`referencias/contratos-portais.md`.
+Três coisas que custam tempo se você não souber:
 
-Grave o retorno em `coletado.json` (ferramenta Write) **sem editar**.
+- **O hook morre em navegação hard** e na reconexão da extensão. Reinstale
+  quando `window.__of2` for `undefined`. Recarregar a página do produto **não**
+  recupera o dado: a chamada do app acontece antes de o hook existir.
+- **Os hashes de rota mudam entre sessões.** Capture do tráfego; a extensão
+  mascara URLs que parecem base64, e usar `window.__cap[i].url` sem ler o valor
+  funciona.
+- **Escolha a sugestão certa.** A 1ª nem sempre é a embalagem da planilha; o
+  portal devolve variantes (250 g, 500 g, edição limitada).
+
+Exporte o `localStorage.__pb` em pedaços (o retorno do `javascript_tool` trunca
+por volta de 1 KB) e grave em `coletado.json` com a ferramenta Write.
+
+Coleta manual por item é trabalhosa: **combine com o usuário quantos itens
+valem a pena** antes de começar, em vez de prometer a planilha inteira.
 
 ### 5. Processe com o mesmo motor do AM
 
@@ -236,9 +215,10 @@ python "$BP" --uf PB --municipio "Joao Pessoa" \
     --planilha lista.xlsx --ofertas-json coletado.json --saida cotacao
 ```
 
-O formato aceito é `{termo: {produto, gtin, url, lojas: [[loja, preco, data,
-bairro, cidade], ...]}}` — cada loja como lista ou como objeto
-`{loja, preco, data, bairro, cidade}`. Chaves começando com `_` são tratadas
+O formato aceito é `{termo: {produto, gtin, url, lojas: [...]}}`, com cada loja
+como lista `[loja, preco, data, bairro, cidade]` ou como objeto
+`{loja, preco, data, bairro, cidade, latitude, longitude, distancia}`. Passando
+coordenada, a distância sai exata por estabelecimento. Chaves começando com `_` são tratadas
 como metadado. O contrato antigo (`{termo: [resposta de /produtos/]}`) continua
 aceito, para a Bahia.
 

@@ -1043,10 +1043,15 @@ class AdapterColetado:
         medida = extrair_medida(nome)
         ofertas: list[Oferta] = []
         for linha in bloco.get("lojas") or []:
+            lat = lon = dist = None
             if isinstance(linha, dict):
                 loja, preco = linha.get("loja"), linha.get("preco")
                 data, bairro = linha.get("data"), linha.get("bairro")
                 cidade = linha.get("cidade")
+                # a PB reescrita entrega coordenada e distancia por loja
+                lat = parse_preco(linha.get("latitude"))
+                lon = parse_preco(linha.get("longitude"))
+                dist = parse_preco(linha.get("distancia"))
             elif isinstance(linha, (list, tuple)) and len(linha) >= 2:
                 loja, preco = linha[0], linha[1]
                 data = linha[2] if len(linha) > 2 else ""
@@ -1057,12 +1062,17 @@ class AdapterColetado:
             valor = parse_preco(preco)
             if valor is None or not loja:
                 continue
+            # a distancia sai da coordenada da loja, nao do centroide do
+            # municipio; a do portal fica como alternativa
+            if dist is None and lat is not None and lon is not None:
+                dist = round(haversine(self.lat, self.lon, lat, lon), 1)
             ofertas.append(Oferta(
                 descricao=nome, preco=valor, gtin=gtin,
                 estabelecimento=str(loja),
                 endereco=str(bairro or ""),
                 municipio=str(cidade or ""),
-                data_venda=str(data or ""),
+                data_venda=str(data or "")[:10],
+                latitude=lat, longitude=lon, distancia_km=dist,
                 fonte=f"Preco da Hora {self.uf} (media do lojista)",
                 medida=medida,
             ))

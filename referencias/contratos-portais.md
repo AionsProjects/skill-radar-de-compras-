@@ -277,21 +277,90 @@ POST /api/<hashPrecos>
        ...}}
 ```
 
-### ARMADILHA: request-hac e request-id são obrigatórios
+### ARMADILHA: request-hac e request-id são NONCE DE USO ÚNICO
 
-Medido, na mesma sessão e com o mesmo corpo:
+Medido em 09/09/2026, na mesma sessão, com a página aberta e válida:
 
 ```
-sem os dois headers   -> HTTP 401 {"success":false,"message":"Unauthorized"}
-reusando os dois      -> HTTP 200 (funcionam para chamadas seguintes)
+sem os dois headers                    -> 401 Unauthorized
+reusando os headers, MESMO corpo       -> 401 Unauthorized
+reusando os headers, corpo diferente   -> 401 Unauthorized
 ```
 
-São gerados pelo JavaScript do app. **Não reproduza essa geração** — é proteção
-anti-abuso. Colete de dentro da página, onde o app os emite. Foi por isso, e
-não só pelo Cloudflare, que nenhum cliente HTTP puro ia funcionar aqui.
+**Não são hash do corpo: são nonce de uso único.** A primeira medição desta
+skill concluiu que eram reutilizáveis, e estava errada: o teste original repetiu
+a chamada segundos depois da original, dentro da janela de validade.
 
-Observado: a validade é curta e chamadas repetidas fora do fluxo do app às vezes
-voltam sem `data`. Capture headers frescos se começar a falhar.
+Consequência prática: **não existe coleta em lote pela API.** Não dá para
+iterar termos fazendo chamadas próprias, e reproduzir a geração do `hac` é
+reverter proteção anti-abuso, o que esta skill não faz.
+
+### O que funciona: capturar a RESPOSTA que o app faz
+
+Deixe o site fazer as chamadas (o `hac` é gerado por ele) e leia o que voltou.
+Hook em `window.fetch` instalado ANTES de navegar:
+
+```js
+window.__of2 = window.fetch;
+window.fetch = async function (...a) {
+  const url = a[0] instanceof Request ? a[0].url : String(a[0]);
+  const r = await window.__of2.apply(this, a);
+  if (url.includes('/api/')) {
+    try {
+      const j = await r.clone().json();
+      const st = ((j.data) || {}).stores;          // <- a chave e `stores`
+      if (st && st.length) {
+        const acc = JSON.parse(localStorage.getItem('__pb') || '{}');
+        acc[st[0].productName] = {
+          produto: st[0].productName, gtin: String(st[0].gtin || ''),
+          lojas_vistas: (((j.data)||{}).pagination||{}).totalItems || st.length,
+          lojas: st.slice(0, 8).map(x => ({loja: x.name, preco: x.price,
+            data: x.date, bairro: x.district, cidade: x.city,
+            latitude: x.lat, longitude: x.lng, distancia: x.distance}))};
+        localStorage.setItem('__pb', JSON.stringify(acc));
+      }
+    } catch (e) {}
+  }
+  return r;
+};
+```
+
+Depois, por termo: clicar no campo de busca, digitar, esperar 6 s, clicar na 1ª
+sugestão, esperar 9 s. O hook grava sozinho em `localStorage.__pb`.
+
+**O hook morre em navegação hard.** Ele sobrevive à navegação client-side do
+Next.js, mas não a um reload nem à reconexão da extensão. Reinstale sempre que
+`window.__of2` for `undefined`, e note que **recarregar a página do produto não
+recupera o dado**: a chamada do app acontece antes de o hook existir.
+
+### A chave da lista é `stores`
+
+Estava documentado aqui como `items`/`products`/`establishments`. Nenhuma delas
+existe. Estrutura real de `data`:
+
+```
+pagination, days, priceRange, cities, stores, refinements
+```
+
+E cada item de `stores` traz, medido:
+
+```
+slug, id, name, street, streetNumber, district, city, geoCategory,
+lng, lat, distance, confidence, score, price, productId, gtin,
+productName, date
+```
+
+Isso é mais rico que o DOM: tem coordenada, distância já calculada, endereço
+com número, GTIN e data ISO. Por isso o caminho do hook é preferível ao
+extrator de DOM.
+
+### Os hashes de rota mudam entre sessões
+
+Medido: a rota de sugestão era `/api/5f67e806...` numa sessão e
+`/api/fd82a387...` na seguinte. **Nunca fixe o hash.** Capture-o do próprio
+tráfego e use `window.__cap[i].url` sem precisar ler o valor: a extensão
+mascara URLs que parecem base64 (`[BLOCKED: Base64 encoded data]`), e isso não
+impede o uso.
 
 ### Extrator de DOM — o caminho que sempre funciona
 
