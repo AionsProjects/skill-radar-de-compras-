@@ -1,0 +1,9 @@
+# SKILL.md com CRLF quebra o parser de frontmatter do Claude Code: a description
+# vira o nome da skill e ela perde o gatilho por contexto. No Windows, o
+# autocrlf converte na hora do checkout -- entao a normalizacao tem de ser
+# imposta aqui, senao o defeito aparece so na maquina de quem clona.
+*.md text eol=lf
+*.py text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+*.xlsx binary
