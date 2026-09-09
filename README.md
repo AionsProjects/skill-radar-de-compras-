@@ -42,7 +42,7 @@ python busca_preco.py --doctor
 ```
 
 Verifica versão do Python, as cinco dependências, acesso ao portal do Amazonas
-e roda as 64 verificações de lógica. Se algo faltar, ele diz exatamente qual
+e roda as 74 verificações de lógica. Se algo faltar, ele diz exatamente qual
 comando resolve. Termine só quando aparecer **"Tudo pronto"**.
 
 ## Usar
@@ -81,6 +81,29 @@ python busca_preco.py --uf AM --municipio Manaus \
 Sai `cotacao.xlsx` (abas Comparativo, Resumo, Alternativas, Auditoria),
 `cotacao.pdf` e `cotacao.json`. `--brutos` guarda a resposta crua de cada
 consulta, para rastrear qualquer número até o que o portal respondeu.
+
+### Como ler as colunas de alternativa
+
+A aba **Comparativo** traz, na linha de cada item, o menor preço e mais três
+opções: `Alternativa 1 (2ª melhor)`, `Alternativa 2 (3ª melhor)` e
+`Alternativa 3 (4ª melhor)`. A alternativa 1 é a **segunda** melhor, porque a
+primeira já são as colunas de menor preço — não é a mesma loja repetida.
+
+Cada alternativa tem duas colunas de valor, e a ordem delas é intencional:
+
+- **"equivale a"** — quanto custaria a embalagem da **sua** planilha a esse
+  preço por litro/quilo. É por esta coluna que as opções estão ordenadas, e é
+  ela que se compara com o seu preço atual.
+- **"preço da embalagem"** — o que a loja realmente cobra pelo que ela vende.
+
+Os dois valores diferem quando a embalagem é outra, e aí a coluna de etiqueta
+**não** fica em ordem crescente. Não é erro: um fardo de detergente com 24
+unidades custa R$ 58,00 e ainda assim é o mais barato por litro (R$ 2,42 o
+equivalente a 500 ml). Para saber o que você vai pagar no caixa, olhe o preço
+da embalagem; para decidir se vale, olhe o equivalente.
+
+A aba **Alternativas** traz até 5 opções por item, uma linha cada, com endereço
+completo, data da venda, código de barras e link do mapa.
 
 ## Os dois estados são diferentes
 
@@ -159,6 +182,6 @@ requisições reais e o procedimento para recapturá-las com o navegador.
 
 Os portais mudam sem aviso: a Paraíba foi reescrita em Next.js e todo o contrato
 antigo morreu. Ao consertar, **rode `--selftest` antes e depois** e registre em
-`referencias/contratos-portais.md` o que você mediu, com data. As 64
+`referencias/contratos-portais.md` o que você mediu, com data. As 74
 verificações não usam rede e várias são regressões de defeitos que já
 aconteceram — se alguma ficar vermelha, os números do relatório não valem nada.

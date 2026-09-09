@@ -1123,6 +1123,12 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
         "descricao_oferta": "",
         "gtin": "",
         "alternativas": [],
+        "alt1_preco": None, "alt1_equivalente": None,
+        "alt1_fornecedor": "", "alt1_municipio": "", "alt1_km": None,
+        "alt2_preco": None, "alt2_equivalente": None,
+        "alt2_fornecedor": "", "alt2_municipio": "", "alt2_km": None,
+        "alt3_preco": None, "alt3_equivalente": None,
+        "alt3_fornecedor": "", "alt3_municipio": "", "alt3_km": None,
         "fornecedores_distintos": 0,
         "medida_oferta": "",
         "municipio_menor_preco": "",
@@ -1272,6 +1278,19 @@ def consolidar(descricao: str, preco_atual: float | None, ofertas: list[Oferta],
     linha["alternativas"] = alternativas
     linha["fornecedores_distintos"] = len(por_loja)
 
+    # As alternativas tambem entram ACHATADAS na linha, para caber na aba
+    # Comparativo. A posicao 0 da lista e o proprio "menor no estado", que ja
+    # tem colunas proprias -- entao "Alternativa 1" e a SEGUNDA melhor, e o
+    # rotulo da coluna diz isso. Sem esse cuidado alguem leria a mesma loja
+    # duas vezes e acharia que sao duas fontes para o mesmo preco.
+    for n in (1, 2, 3):
+        alt = alternativas[n] if len(alternativas) > n else None
+        linha["alt%d_preco" % n] = alt["preco"] if alt else None
+        linha["alt%d_equivalente" % n] = alt["preco_na_medida_da_planilha"] if alt else None
+        linha["alt%d_fornecedor" % n] = alt["fornecedor"] if alt else ""
+        linha["alt%d_municipio" % n] = alt["municipio"] if alt else ""
+        linha["alt%d_km" % n] = alt["distancia_km"] if alt else None
+
     ppb_ref = linha["preco_atual_por_base"]
     ppb_melhor = preco_por_base(melhor.preco, melhor.medida)
     if so_baixa:
@@ -1335,6 +1354,21 @@ COLUNAS_SAIDA = [
     ("estabelecimento_menor_preco", "Fornecedor (menor preco)", None),
     ("endereco_menor_preco", "Endereco do fornecedor", None),
     ("gtin", "Codigo de busca (GTIN)", None),
+    ("alt1_equivalente", "Alternativa 1 (2a melhor): equivale a", "R$ #,##0.00"),
+    ("alt1_preco", "Alternativa 1: preco da embalagem", "R$ #,##0.00"),
+    ("alt1_fornecedor", "Alternativa 1: fornecedor", None),
+    ("alt1_municipio", "Alternativa 1: municipio", None),
+    ("alt1_km", "Alternativa 1: km", "#,##0.0"),
+    ("alt2_equivalente", "Alternativa 2 (3a melhor): equivale a", "R$ #,##0.00"),
+    ("alt2_preco", "Alternativa 2: preco da embalagem", "R$ #,##0.00"),
+    ("alt2_fornecedor", "Alternativa 2: fornecedor", None),
+    ("alt2_municipio", "Alternativa 2: municipio", None),
+    ("alt2_km", "Alternativa 2: km", "#,##0.0"),
+    ("alt3_equivalente", "Alternativa 3 (4a melhor): equivale a", "R$ #,##0.00"),
+    ("alt3_preco", "Alternativa 3: preco da embalagem", "R$ #,##0.00"),
+    ("alt3_fornecedor", "Alternativa 3: fornecedor", None),
+    ("alt3_municipio", "Alternativa 3: municipio", None),
+    ("alt3_km", "Alternativa 3: km", "#,##0.0"),
     ("fornecedores_distintos", "Fornecedores com o item", "0"),
     ("distancia_km", "Distancia (km, linha reta)", "#,##0.0"),
     ("preco_equivalente_na_medida_da_planilha", "Equivalente na medida da planilha", "R$ #,##0.00"),
@@ -1387,8 +1421,24 @@ def escrever_xlsx(resultados: list[dict], caminho: str, contexto: dict) -> None:
         if eco > 0:
             ws.cell(row=i, column=idx_eco).fill = verde
 
-    larguras = {1: 42, 2: 12, 5: 30, 7: 40, 9: 24, 10: 30, 15: 22, 18: 22,
-                19: 24, 20: 28, 21: 46}
+    # Largura por CHAVE, nao por indice: acrescentar uma coluna no meio de
+    # COLUNAS_SAIDA nao pode desalinhar as larguras de todas as seguintes.
+    LARGURA_POR_CHAVE = {
+        "descricao_planilha": 42, "medida_planilha": 12,
+        "estabelecimento_municipio": 30, "descricao_oferta": 40,
+        "municipio_menor_preco": 24, "estabelecimento_menor_preco": 30,
+        "endereco_menor_preco": 44, "gtin": 20, "data_venda": 22,
+        "termo_consultado": 28, "observacao": 46,
+        "preco_equivalente_na_medida_da_planilha": 22,
+        "ofertas_descartadas_ruido": 22, "ofertas_descartadas_outlier": 24,
+        "fornecedores_distintos": 20,
+    }
+    for n in (1, 2, 3):
+        LARGURA_POR_CHAVE["alt%d_fornecedor" % n] = 32
+        LARGURA_POR_CHAVE["alt%d_municipio" % n] = 18
+        LARGURA_POR_CHAVE["alt%d_equivalente" % n] = 20
+    larguras = {j: LARGURA_POR_CHAVE.get(chave, 16)
+                for j, (chave, _r, _f) in enumerate(COLUNAS_SAIDA, 1)}
     for j in range(1, len(COLUNAS_SAIDA) + 1):
         ws.column_dimensions[get_column_letter(j)].width = larguras.get(j, 16)
     ws.freeze_panes = "A2"
@@ -1918,6 +1968,65 @@ def selftest() -> int:
 
     r3 = consolidar("CEBOLA", 4.99, [], "Manaus", "AM", None, geocode=False)
     check("sem oferta -> NAO_ENCONTRADO", r3["confianca_match"] == "NAO_ENCONTRADO")
+
+    print("alternativas achatadas nas colunas (Alternativa 1/2/3)")
+    lojas_alt = [
+        ("MERCADO A", 5.99, "Manaus"), ("MERCADO B", 6.19, "Manaus"),
+        ("MERCADO C", 6.49, "Itacoatiara"), ("MERCADO D", 6.99, "Manaus"),
+        ("MERCADO E", 7.49, "Manaus"),
+    ]
+    r_alt = consolidar("ARROZ TIO JOAO 1KG", 8.90,
+                       [Oferta("ARROZ TIO JOAO 1KG", pr, nome, "", mun,
+                               medida=extrair_medida("ARROZ TIO JOAO 1KG"))
+                        for nome, pr, mun in lojas_alt],
+                       "Manaus", "AM", None, geocode=False)
+    check("menor no estado e a 1a opcao", r_alt["menor_preco_estado"] == 5.99)
+    check("Alternativa 1 e a SEGUNDA melhor, nao a primeira",
+          r_alt["alt1_preco"] == 6.19 and r_alt["alt1_fornecedor"] == "MERCADO B",
+          f"-> {r_alt['alt1_preco']} / {r_alt['alt1_fornecedor']}")
+    check("Alternativa 2 e 3 seguem a ordem de preco",
+          (r_alt["alt2_preco"], r_alt["alt3_preco"]) == (6.49, 6.99),
+          f"-> {r_alt['alt2_preco']}, {r_alt['alt3_preco']}")
+    check("preco e fornecedor da alternativa nao se cruzam",
+          r_alt["alt2_fornecedor"] == "MERCADO C" and r_alt["alt2_municipio"] == "Itacoatiara")
+    check("nunca repete o menor preco como alternativa",
+          r_alt["alt1_fornecedor"] != r_alt["estabelecimento_menor_preco"])
+    r_poucas = consolidar("ARROZ TIO JOAO 1KG", 8.90,
+                          [Oferta("ARROZ TIO JOAO 1KG", 5.99, "UNICO", "", "Manaus",
+                                  medida=extrair_medida("ARROZ TIO JOAO 1KG"))],
+                          "Manaus", "AM", None, geocode=False)
+    check("uma oferta so -> alternativas em branco",
+          r_poucas["alt1_preco"] is None and r_poucas["alt1_fornecedor"] == "")
+    check("item sem oferta -> alternativas em branco",
+          consolidar("CEBOLA", 4.99, [], "Manaus", "AM", None,
+                     geocode=False)["alt3_preco"] is None)
+    # a ordem e por preco na medida da planilha, nao por preco de etiqueta:
+    # um fardo de 12 L a R$ 58,00 e mais barato POR LITRO que uma garrafa a
+    # R$ 2,79, e por isso aparece antes mesmo custando 20x mais
+    lojas_emb = [
+        ("FARDO", 58.00, "DETERGENTE YPE NEUTRO 24 X 500ML"),
+        ("GARRAFA A", 2.79, "DETERGENTE YPE NEUTRO 500ML"),
+        ("GARRAFA B", 2.89, "DETERGENTE YPE NEUTRO 500ML"),
+        ("GARRAFA C", 2.99, "DETERGENTE YPE NEUTRO 500ML"),
+    ]
+    r_emb = consolidar("DETERGENTE YPE NEUTRO 500ML", 3.49,
+                       [Oferta(desc, pr, nome, "", "Manaus", medida=extrair_medida(desc))
+                        for nome, pr, desc in lojas_emb],
+                       "Manaus", "AM", None, geocode=False)
+    equivalentes = [r_emb["preco_equivalente_na_medida_da_planilha"]] + [
+        r_emb["alt%d_equivalente" % n] for n in (1, 2, 3)]
+    equivalentes = [e for e in equivalentes if e is not None]
+    check("equivalentes ficam em ordem crescente (a ordem real)",
+          equivalentes == sorted(equivalentes), f"-> {equivalentes}")
+    check("o fardo caro por etiqueta e o melhor por litro",
+          r_emb["menor_preco_estado"] == 58.00
+          and r_emb["preco_equivalente_na_medida_da_planilha"] < r_emb["alt1_equivalente"],
+          f"-> {r_emb['menor_preco_estado']} / {r_emb['preco_equivalente_na_medida_da_planilha']}")
+
+    check("toda chave de alternativa existe em COLUNAS_SAIDA",
+          all(("alt%d_%s" % (n, c)) in [k for k, _r, _f in COLUNAS_SAIDA]
+              for n in (1, 2, 3)
+              for c in ("preco", "equivalente", "fornecedor", "municipio", "km")))
 
     print("coleta da pagina de produto do Preco da Hora PB (Next.js)")
     coleta_pb = {
