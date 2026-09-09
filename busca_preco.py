@@ -1799,7 +1799,7 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
     PERIGO = colors.Color(*AIONS_PERIGO)
 
     # escala tipografica com poucos degraus, herdada do padrao
-    T_H2, T_CORPO, T_TAB, T_MICRO = 11.5, 8.6, 7.6, 6.6
+    T_H2, T_CORPO, T_TAB, T_MICRO, T_ALT = 11.5, 8.6, 8.2, 7.0, 7.4
 
     est = {
         "h2": ParagraphStyle("h2", fontName=F_TITULO, fontSize=T_H2, leading=14,
@@ -1820,6 +1820,10 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
                                textColor=NAVY),
         "micro": ParagraphStyle("micro", fontName=F_CORPO, fontSize=T_MICRO,
                                 leading=8.4, textColor=SLATE),
+        # as linhas de "outra opção" ficavam em 6,6pt e mal se liam; 7,4 contra
+        # 8,2 do corpo mantem a hierarquia e ainda e legivel no papel
+        "alt": ParagraphStyle("alt", fontName=F_CORPO, fontSize=T_ALT,
+                              leading=9.6, textColor=SLATE_DK),
         "fim": ParagraphStyle("fim", fontName=F_CORPO, fontSize=T_MICRO + 0.6,
                               leading=10.4, textColor=SLATE, spaceBefore=2.5),
     }
@@ -1841,27 +1845,27 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         # logo a direita, como em todas as paginas da apresentacao
         if _LOGO is not None:
             try:
-                alt_logo = 13.5 * mm
+                alt_logo = 15.5 * mm
                 larg_logo = alt_logo * _LOGO.LARGURA / _LOGO.ALTURA
                 _LOGO.desenhar(canv, MARG + LARG - larg_logo, 13 * mm, alt_logo)
             except Exception:
                 pass
         canv.setFillColorRGB(*AIONS_NAVY)
         canv.setFont(F_DISPLAY, 19)
-        canv.drawString(MARG, alt - 20 * mm, "Radar de compras")
+        canv.drawString(MARG, alt - 19 * mm, "Radar de compras")
         # o subtitulo da apresentacao e teal, nao cinza
         canv.setFont(F_FORTE, T_CORPO)
         canv.setFillColorRGB(*AIONS_TEAL_DK)
-        canv.drawString(MARG, alt - 25.5 * mm,
+        canv.drawString(MARG, alt - 26.5 * mm,
                         "%s, %s" % (contexto.get("municipio", ""), contexto.get("data", "")))
         canv.setFont(F_CORPO, T_CORPO - 0.4)
         canv.setFillColorRGB(*AIONS_SLATE)
-        canv.drawString(MARG, alt - 30 * mm,
+        canv.drawString(MARG, alt - 32 * mm,
                         "%s, %d itens conferidos" % (contexto.get("portal", ""),
                                                      len(resultados)))
         canv.setStrokeColorRGB(*AIONS_TEAL)
         canv.setLineWidth(2.4)
-        canv.line(MARG, alt - 33.5 * mm, MARG + LARG, alt - 33.5 * mm)
+        canv.line(MARG, alt - 37 * mm, MARG + LARG, alt - 37 * mm)
         # regua de fechamento no pe da pagina, como na apresentacao
         canv.setStrokeColorRGB(*AIONS_LINE)
         canv.setLineWidth(0.6)
@@ -1871,7 +1875,7 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
         canv.drawRightString(MARG + LARG, 9 * mm, "%d" % _doc.page)
         canv.restoreState()
 
-    quadro = Frame(MARG, 14 * mm, LARG, A4[1] - 36 * mm - 14 * mm, id="corpo",
+    quadro = Frame(MARG, 14 * mm, LARG, A4[1] - 40 * mm - 14 * mm, id="corpo",
                    leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     doc.addPageTemplates([PageTemplate(id="aions", frames=[quadro], onPage=masthead)])
 
@@ -1898,12 +1902,15 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
 
     # ---- destaque: o numero que resume a leitura -------------------------
     if trocar:
+        hist.append(Spacer(1, 5))          # respiro sob a regua de acento
         painel = Table(
             [[Paragraph('<font name="%s" size="26" color="#121E31">%s</font><br/>'
-                        '<font name="%s" size="7" color="#64748B">economia por unidade, '
-                        'somando %d %s</font>'
+                        '<br/><font name="%s" size="7.4" color="#64748B">economia por '
+                        'unidade, somando %d %s</font>'
                         % (F_DISPLAY, brl(total), F_CORPO, len(trocar),
-                           "item" if len(trocar) == 1 else "itens"), est["cel"]),
+                           "item" if len(trocar) == 1 else "itens"),
+                        ParagraphStyle("destaque", fontName=F_CORPO, fontSize=8,
+                                       leading=15, textColor=SLATE_DK)),
               Paragraph('<font name="%s" size="7.6" color="#475569">'
                         'Cada preço abaixo é o equivalente à embalagem da sua planilha. '
                         'Os valores vêm de NFC-e já emitida: é o que alguém pagou, '
@@ -1916,7 +1923,8 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 10),
             ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 9), ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ]))
         hist.append(painel)
 
@@ -2021,13 +2029,13 @@ def escrever_pdf(resultados: list[dict], caminho: str, contexto: dict) -> None:
                     Paragraph('<font name="%s" color="#475569">%s opção</font>'
                               '&nbsp;<font color="#64748B">%s</font>'
                               % (F_FORTE, ordinal, str(alt.get("embalagem") or "")),
-                              est["micro"]),
+                              est["alt"]),
                     "",
-                    Paragraph(brl(alt.get("preco_na_medida_da_planilha")), est["micro"]),
-                    Paragraph(str(alt.get("fornecedor") or "-")[:26], est["micro"]),
-                    Paragraph(str(alt.get("municipio") or "-")[:18], est["micro"]),
-                    Paragraph(km(alt.get("distancia_km")), est["micro"]),
-                    Paragraph(brl(alt.get("economia_vs_atual")), est["micro"]),
+                    Paragraph(brl(alt.get("preco_na_medida_da_planilha")), est["alt"]),
+                    Paragraph(str(alt.get("fornecedor") or "-")[:26], est["alt"]),
+                    Paragraph(str(alt.get("municipio") or "-")[:18], est["alt"]),
+                    Paragraph(km(alt.get("distancia_km")), est["alt"]),
+                    Paragraph(brl(alt.get("economia_vs_atual")), est["alt"]),
                 ])
             t = Table(linhas_item, colWidths=[LARG * x for x in COLS])
             t.setStyle(TableStyle([
