@@ -99,7 +99,7 @@ python "$BP" --uf PB --municipio "Joao Pessoa" \
 ```
 
 Use `termos_unicos`. A referência de localização do portal é por **CEP**, e
-aparece no topo da página (ex. `58010000 VARADOURO, JOÃO PESSOA`); confira se
+aparece no topo da página (ex. `<CEP> <BAIRRO>, JOÃO PESSOA`); confira se
 corresponde ao município pedido antes de coletar.
 
 ### 2. Abra o portal

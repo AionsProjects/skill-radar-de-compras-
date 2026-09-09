@@ -136,7 +136,7 @@ Base: BA `https://precodahora.ba.gov.br` (a PB migrou; ver o fim do arquivo)
 
 O CSRF vem assim:
 ```html
-<meta data-id="ImM0NjEzNmNjZDYzM2QxOTU4N2U2NzhjNGNhYjkxMDk3ODM0YTliOTki.aqDDww.okaneclURqbHwCMVZnzR_TKQFuo" id="validate"/>
+<meta data-id="<token da sessao>" id="validate"/>
 ```
 
 ### ARMADILHA: `/produtos/` é aninhado, não plano
@@ -249,8 +249,8 @@ Os hashes **mudam a cada deploy** — nunca fixe. Capture com hook em
 ```
 POST /api/<hashSugestao>
      content-type: application/json
-     request-hac: 70cd06da2552134335551acca82fd4c0
-     request-id:  c05de047aa0574962c8bc195eb686fd5
+     request-hac: <32 hex, capturado do app>
+     request-id:  <32 hex, capturado do app>
      {"content":"detergente ype"}
 
   -> {"success":true,"data":[

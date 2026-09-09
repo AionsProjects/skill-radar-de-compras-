@@ -1,4 +1,4 @@
-# busca-preco
+# busca-preco — Radar de Compras
 
 Compara os preços de uma planilha de produtos com os preços **realmente
 praticados** no comércio, usando os portais oficiais de preço por NFC-e do
@@ -17,7 +17,7 @@ Precisa de **Python 3.10+** e do **Claude Code**.
 ### Windows (PowerShell)
 
 ```powershell
-git clone <URL-DO-REPO> "$env:USERPROFILE\.claude\skills\busca-preco"
+git clone https://github.com/AionsProjects/skill-radar-de-compras-.git "$env:USERPROFILE\.claude\skills\busca-preco"
 pip install requests beautifulsoup4 lxml openpyxl reportlab
 python "$env:USERPROFILE\.claude\skills\busca-preco\busca_preco.py" --doctor
 ```
@@ -25,7 +25,7 @@ python "$env:USERPROFILE\.claude\skills\busca-preco\busca_preco.py" --doctor
 ### macOS / Linux
 
 ```bash
-git clone <URL-DO-REPO> ~/.claude/skills/busca-preco
+git clone https://github.com/AionsProjects/skill-radar-de-compras-.git ~/.claude/skills/busca-preco
 pip install requests beautifulsoup4 lxml openpyxl reportlab
 python ~/.claude/skills/busca-preco/busca_preco.py --doctor
 ```
