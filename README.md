@@ -12,38 +12,63 @@ de fornecedor: mostra economia e distância lado a lado, e a decisão é sua.
 
 ## Instalar
 
-Precisa de **Python 3.10+** e do **Claude Code**.
+Precisa de **Claude Code** e de **Python 3.10+**. Se você não tem Python — ou não
+sabe se tem —, use o instalador: ele descobre, oferece instalar e configura tudo.
 
-### Windows (PowerShell)
+### Windows
 
 ```powershell
 git clone https://github.com/AionsProjects/skill-radar-de-compras-.git "$env:USERPROFILE\.claude\skills\busca-preco"
-pip install requests beautifulsoup4 lxml openpyxl reportlab
-python "$env:USERPROFILE\.claude\skills\busca-preco\busca_preco.py" --doctor
+cd "$env:USERPROFILE\.claude\skills\busca-preco"
+powershell -ExecutionPolicy Bypass -File instalar.ps1
 ```
 
 ### macOS / Linux
 
 ```bash
 git clone https://github.com/AionsProjects/skill-radar-de-compras-.git ~/.claude/skills/busca-preco
-pip install requests beautifulsoup4 lxml openpyxl reportlab
-python ~/.claude/skills/busca-preco/busca_preco.py --doctor
+cd ~/.claude/skills/busca-preco
+bash instalar.sh
 ```
+
+O instalador procura um Python que sirva, instala as cinco dependências e roda a
+verificação final. Termine quando aparecer **"Tudo pronto"**, e então
+**reinicie o Claude Code** — a skill só aparece em sessão nova.
 
 **O nome da pasta tem de ser `busca-preco`** — é ele que define o comando
-`/busca-preco`, não o conteúdo do arquivo.
+`/busca-preco`, não o conteúdo do arquivo. O repositório tem outro nome, e os
+comandos acima já cuidam disso.
 
-Depois de clonar, **reinicie o Claude Code** para a skill aparecer.
+### Se você não tem Python
 
-### Conferir se ficou tudo certo
+No **Windows**, o instalador oferece instalar o Python 3.12 pela loja oficial da
+Microsoft (`winget`), com um "s" de confirmação. Depois disso, **feche o
+PowerShell e abra outro** antes de rodar de novo: o PATH só atualiza em janelas
+novas. Sem `winget`, ele manda você para
+[python.org/downloads](https://www.python.org/downloads/) — e ali **marque
+"Add python.exe to PATH"** na primeira tela, senão nada funciona depois.
 
-```
+Cuidado com uma pegadinha do Windows: existe um `python3.exe` em
+`WindowsApps` que está no PATH e, ao ser chamado, **abre a Microsoft Store em
+vez de executar**. O instalador reconhece esse atalho e o ignora; se você
+instalar na mão e o `python` abrir a loja, é isso.
+
+No **macOS**, `brew install python@3.12`. No **Linux**,
+`sudo apt install python3 python3-pip` (ou o equivalente da sua distribuição).
+Em distribuições recentes, o pip recusa instalar no Python do sistema; o
+instalador contorna com `--user` e, se ainda assim falhar, mostra o comando de
+ambiente virtual.
+
+### Instalação manual, se preferir
+
+```bash
+pip install requests beautifulsoup4 lxml openpyxl reportlab
 python busca_preco.py --doctor
 ```
 
-Verifica versão do Python, as cinco dependências, acesso ao portal do Amazonas
-e roda as 74 verificações de lógica. Se algo faltar, ele diz exatamente qual
-comando resolve. Termine só quando aparecer **"Tudo pronto"**.
+O `--doctor` verifica versão do Python, as cinco dependências, acesso ao portal
+do Amazonas e roda as 74 verificações de lógica. Quando algo falta, ele diz o
+comando exato que resolve.
 
 ## Usar
 
@@ -168,6 +193,7 @@ API pública.
 ## Arquivos
 
 ```
+instalar.ps1 / instalar.sh        instalador: acha ou instala o Python e as deps
 SKILL.md                          o que o Claude lê: fluxo dos dois estados
 busca_preco.py                    o módulo (--doctor, --selftest, --smoke)
 referencias/contratos-portais.md  as requisições reais dos portais, verbatim
