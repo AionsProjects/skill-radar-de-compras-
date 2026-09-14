@@ -18,9 +18,24 @@ Não precisa saber programar, nem instalar Python antes: o instalador resolve.
 
 ## Instalação
 
-1. Descompacte a pasta `busca-preco` em **qualquer lugar** do seu computador.
+### Se você tem Git
 
-2. Clique com o botão direito na pasta, escolha **Copiar como caminho**.
+```powershell
+git clone https://github.com/AionsProjects/skill-radar-de-compras-.git radar-de-compras
+cd radar-de-compras
+powershell -ExecutionPolicy Bypass -File instalar.ps1
+```
+
+Pule para o passo 6.
+
+### Se você não tem Git
+
+1. Abra https://github.com/AionsProjects/skill-radar-de-compras- no navegador,
+   clique no botão verde **Code** e escolha **Download ZIP**. Descompacte em
+   **qualquer lugar** do seu computador.
+
+2. Clique com o botão direito na pasta descompactada, escolha
+   **Copiar como caminho**.
 
 3. Abra o **PowerShell** (tecla Windows, digite `powershell`, Enter).
 

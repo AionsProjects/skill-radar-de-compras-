@@ -155,7 +155,13 @@ $desktopCfg = Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'
 $temDesktop = Test-Path (Join-Path $env:LOCALAPPDATA 'Claude')
 if ($codigo -eq 0 -and $temDesktop) {
     Titulo 'Configurando o Claude Desktop'
+    # a mesma tolerancia do busca_preco.py: quem so vai usar o Desktop nao tem
+    # motivo para descompactar em .claude\skills, entao o servidor pode estar
+    # na pasta onde este script foi rodado
     $servidor = Join-Path $PASTA 'mcp_server.py'
+    if (-not (Test-Path $servidor)) {
+        $servidor = Join-Path $PSScriptRoot 'mcp_server.py'
+    }
     if (-not (Test-Path $servidor)) {
         Aviso 'mcp_server.py nao encontrado; o Desktop nao foi configurado'
     } else {
