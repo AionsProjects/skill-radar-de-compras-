@@ -42,7 +42,7 @@ pip install requests beautifulsoup4 lxml openpyxl reportlab
 python "$BP" --selftest
 ```
 
-106 verificações de lógica pura, sem rede, várias delas regressões de defeitos
+136 verificações de lógica pura, sem rede, várias delas regressões de defeitos
 reais. **Se alguma falhar, pare e corrija antes de consultar os portais** — um
 teste vermelho aqui significa que os números do relatório não valem nada.
 
@@ -323,9 +323,15 @@ SendUserFile, não só o caminho.
    `NAO_ENCONTRADO` — nomeando estes.
 3. Quantos resultados foram descartados: por não corresponderem ao produto e por
    preço fora da curva.
-4. A economia somada, deixando claro que é **por unidade** e que não inclui
-   frete nem diferença de ICMS.
-5. O que ficou de fora, com todas as letras.
+4. As três contagens do topo: quantos itens estão mais baratos no mercado,
+   quantos vale manter e quantos subiram. **Não** reporte economia somada como
+   número de destaque: somar economia unitária de embalagens diferentes não
+   vira dinheiro enquanto não se multiplica pelas quantidades compradas. A
+   economia por item é por unidade e não inclui frete nem diferença de ICMS.
+5. Quando a embalagem vendida no portal não é a da planilha, diga qual é. O
+   menor preço por quilo costuma ser fardo: converter sem mostrar a embalagem
+   esconde que o comprador leva 5 kg para pagar aquele valor.
+6. O que ficou de fora, com todas as letras.
 
 ## Contratos dos portais
 

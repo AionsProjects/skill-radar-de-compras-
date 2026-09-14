@@ -12,7 +12,7 @@
 $ErrorActionPreference = 'Stop'
 $MINIMO = [version]'3.10'
 $PASTA  = Join-Path $env:USERPROFILE '.claude\skills\busca-preco'
-$DEPS   = @('requests', 'beautifulsoup4', 'lxml', 'openpyxl', 'reportlab')
+$DEPS   = @('requests', 'beautifulsoup4', 'lxml', 'openpyxl', 'reportlab', 'mcp')
 
 function Titulo($t) { Write-Host ''; Write-Host $t -ForegroundColor Cyan }
 function Ok($t)     { Write-Host "  ok    $t" -ForegroundColor Green }
@@ -143,12 +143,60 @@ Titulo 'Verificando o ambiente'
 Invoke-Python @($script, '--doctor')
 $codigo = $LASTEXITCODE
 
+# ---------------------------------------------------------------------------
+# Claude Desktop: registrar o servidor MCP
+#
+# No Desktop, uma SKILL roda no ambiente de codigo da Anthropic, que nao alcanca
+# o portal da SEFAZ -- ela apareceria na lista sem conseguir consultar nada. Um
+# servidor MCP roda aqui, com este Python e esta rede, e por isso coleta de
+# verdade. Por isso o instalador registra o MCP, nao a skill.
+# ---------------------------------------------------------------------------
+$desktopCfg = Join-Path $env:APPDATA 'Claude\claude_desktop_config.json'
+$temDesktop = Test-Path (Join-Path $env:LOCALAPPDATA 'Claude')
+if ($codigo -eq 0 -and $temDesktop) {
+    Titulo 'Configurando o Claude Desktop'
+    $servidor = Join-Path $PASTA 'mcp_server.py'
+    if (-not (Test-Path $servidor)) {
+        Aviso 'mcp_server.py nao encontrado; o Desktop nao foi configurado'
+    } else {
+        $exe = (Invoke-Python @('-c', 'import sys; print(sys.executable)')).Trim()
+        # Preserva o que ja existe: sobrescrever o arquivo apagaria os MCP de
+        # outras ferramentas que a pessoa ja usa.
+        if (Test-Path $desktopCfg) {
+            $cfg = Get-Content $desktopCfg -Raw | ConvertFrom-Json
+        } else {
+            New-Item -ItemType Directory -Force -Path (Split-Path $desktopCfg) | Out-Null
+            $cfg = [pscustomobject]@{}
+        }
+        if (-not $cfg.PSObject.Properties['mcpServers']) {
+            $cfg | Add-Member -NotePropertyName 'mcpServers' -NotePropertyValue ([pscustomobject]@{})
+        }
+        $entrada = [pscustomobject]@{ command = $exe; args = @($servidor) }
+        if ($cfg.mcpServers.PSObject.Properties['radar-de-compras']) {
+            $cfg.mcpServers.'radar-de-compras' = $entrada
+        } else {
+            $cfg.mcpServers | Add-Member -NotePropertyName 'radar-de-compras' -NotePropertyValue $entrada
+        }
+        $cfg | ConvertTo-Json -Depth 10 | Set-Content $desktopCfg -Encoding utf8
+        Ok "Claude Desktop configurado em $desktopCfg"
+    }
+}
+
 Write-Host ''
 if ($codigo -eq 0) {
     Write-Host 'Tudo pronto.' -ForegroundColor Green
     Write-Host ''
+    Write-Host '  No Claude Code:'
     Write-Host '  1. Reinicie o Claude Code (a skill so aparece em sessao nova).'
     Write-Host '  2. Use:  /busca-preco minha-lista.xlsx AM'
+    if ($temDesktop) {
+        Write-Host ''
+        Write-Host '  No Claude Desktop:'
+        Write-Host '  1. Feche e abra o Claude Desktop.'
+        Write-Host '  2. Peca em linguagem normal, por exemplo:'
+        Write-Host '       "cota a planilha C:\caminho\lista.xlsx em Manaus"'
+        Write-Host '       "quanto custa agua sanitaria em Manaus?"'
+    }
     Write-Host ''
     Write-Host "  Planilha de exemplo: $PASTA\referencias\exemplo-amazonas.xlsx"
     Write-Host '  O Amazonas funciona agora. A Paraiba precisa da extensao do Claude'

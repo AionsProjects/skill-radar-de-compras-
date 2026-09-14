@@ -128,7 +128,12 @@ preço desalinham.
 
 ### O que o PDF responde
 
-Três perguntas de decisão, e nada além disso:
+O topo traz **três contagens** — quantos itens estão mais baratos no mercado,
+quantos vale a pena manter e quantos subiram de preço. De propósito não há
+soma de economia: somar economia unitária de embalagens diferentes não vira
+dinheiro nenhum enquanto não se multiplica pelas quantidades compradas.
+
+Abaixo, três perguntas de decisão e nada além disso:
 
 1. **Vale trocar de fornecedor**: os itens mais baratos em outro lugar. A linha
    destacada é a melhor opção e, abaixo dela, **as outras opções do mesmo
@@ -136,9 +141,12 @@ Três perguntas de decisão, e nada além disso:
    embalagem. Opção sem preço comparável não entra: não ajuda a decidir.
 2. **Vale manter o fornecedor atual** — onde o mercado não está melhor do que
    você já paga.
-3. **Preço subiu no seu próprio fornecedor** — quando o fornecedor da sua
+3. **Passaram por aumento no mercado** — quando o fornecedor da sua
    planilha aparece no portal cobrando **mais** do que o valor que você
-   registrou. Depende de a coluna de fornecedor existir na planilha e de esse
+   registrou. Entram aqui **todos** os itens com alta medida, inclusive os que
+   também aparecem na seção 1: uma coluna de situação diz se ainda existe opção
+   mais barata em outro fornecedor ou se o preço já é o melhor encontrado.
+   Depende de a coluna de fornecedor existir na planilha e de esse
    fornecedor ter emitido NFC-e na janela consultada; quando não dá para
    verificar, o relatório diz isso em vez de afirmar que está tudo bem.
 
