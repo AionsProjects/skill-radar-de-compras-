@@ -28,7 +28,20 @@ powershell -ExecutionPolicy Bypass -File instalar.ps1
 
 Pule para o passo 6.
 
-### Se você não tem Git
+### Se você não tem Git (mais simples)
+
+Abra o **PowerShell** (tecla Windows, digite `powershell`, Enter) e cole esta
+linha:
+
+```powershell
+irm https://raw.githubusercontent.com/AionsProjects/skill-radar-de-compras-/main/instalar-web.ps1 | iex
+```
+
+Ele baixa a versão atual e instala tudo sozinho. Pule para o passo 6.
+
+**Para atualizar depois, é a mesma linha.**
+
+### Ou, se preferir baixar na mão
 
 1. Abra https://github.com/AionsProjects/skill-radar-de-compras- no navegador,
    clique no botão verde **Code** e escolha **Download ZIP**. Descompacte em
