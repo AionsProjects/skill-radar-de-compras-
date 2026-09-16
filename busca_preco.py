@@ -535,12 +535,18 @@ class AdapterAM:
     # responde igual, mas /p/ e a que o portal usa de fato.
     CANDIDATOS = ["/item/grupo/p", "/item/grupo/page", "/item/page"]
 
-    def __init__(self, pausa: float = 1.5, paginas: int = 2):
+    def __init__(self, pausa: float = 1.5, paginas: int = 2, municipio: str = ""):
         import requests
         self.s = requests.Session()
         self.s.headers.update({"User-Agent": UA})
         self.pausa = pausa
         self.paginas = paginas
+        # O portal FILTRA por este campo. Medido em 15/09/2026: sem ele, as 24
+        # ofertas de "arroz" vinham todas de Manaus; com municipio=PARINTINS,
+        # 11 das 12 eram de Parintins. A documentacao anterior dizia que o
+        # filtro nao funcionava -- a medicao tinha sido feita a partir de
+        # Manaus, onde filtrar por Manaus nao muda nada mesmo.
+        self.municipio = sem_acento(str(municipio or "")).upper().strip()
         self._rota = None
         self._raw: list[str] = []
 
@@ -569,6 +575,7 @@ class AdapterAM:
         url = f"{self.BASE}{rota}/{pagina}"
         r = self.s.post(url, data={
             "descricaoProd": termo, "latitude": "", "longitude": "",
+            "municipio": self.municipio,
             "g-recaptcha-response": "", "action": "",
         }, timeout=45)
         r.encoding = "latin-1"
@@ -2607,6 +2614,16 @@ def selftest() -> int:
           extrair_medida("FLANELA BRANCA 30X40CM").total is None,
           "-> %s" % extrair_medida("FLANELA BRANCA 30X40CM").total)
 
+    print("o municipio vai no corpo do POST")
+    ad_p = AdapterAM(municipio="Parintins")
+    check("municipio normalizado para o portal", ad_p.municipio == "PARINTINS",
+          "-> %r" % ad_p.municipio)
+    check("sem municipio, o campo vai vazio", AdapterAM().municipio == "",
+          "-> %r" % AdapterAM().municipio)
+    check("acento nao vai para o portal",
+          AdapterAM(municipio="Tefé").municipio == "TEFE",
+          "-> %r" % AdapterAM(municipio="Tefé").municipio)
+
     print("a palavra de embalagem que E o produto")
     check("SACO nao e removido quando abre a descricao",
           termo_de_busca("SACO PARA LIXO PCT C/100 100L") == "SACO LIXO",
@@ -3222,7 +3239,7 @@ def construir_adapter(uf: str, municipio: str, raio: int, horas: int, paginas: i
                       perfil: str | None = None):
     uf = uf.upper()
     if uf == "AM":
-        return AdapterAM(paginas=paginas), None
+        return AdapterAM(paginas=paginas, municipio=municipio), None
     if uf in ("PB", "BA"):
         coord = geocodificar(municipio, uf)
         if not coord:

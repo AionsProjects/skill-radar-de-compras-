@@ -57,10 +57,22 @@ python "$BP" --uf AM --municipio Manaus \
 Sem login, sem captcha. Janela de 48 h.
 
 O formulário tem filtros de `tipoConsulta` (0/24/48/168 h), `distancia`
-(2/5/10/9999 km), `municipio`, `precoMinimo` e `precoMaximo`. O adaptador **não
-usa** os de raio e município: enviar `distancia=2` com coordenada de Manaus não
-mudou o resultado (medido em 09/09/2026), então não afirme que funcionam por
-POST. O município de cada oferta sai do endereço do estabelecimento.
+(2/5/10/9999 km), `municipio`, `precoMinimo` e `precoMaximo`.
+
+**`municipio` FUNCIONA e o adaptador usa** (medido em 15/09/2026). Sem ele, as
+24 ofertas de "arroz" vinham todas de Manaus; com `municipio=PARINTINS`, 11 das
+12 eram de Parintins. Testado depois em Manaus, Parintins, Itacoatiara e
+Manacapuru: 100% das ofertas no município pedido, nos quatro.
+
+A medição anterior, de 09/09/2026, dizia que o filtro não funcionava. Estava
+errada: foi feita a partir de Manaus, onde filtrar por Manaus não muda nada —
+e a conclusão virou "o filtro é inócuo". Isso deixou quem compra fora da
+capital recebendo preço de Manaus, que no Amazonas pode ser dias de viagem
+fluvial. Envie o município **sem acento e em caixa alta**.
+
+O de `distancia` continua sem uso: enviar `distancia=2` com coordenada de
+Manaus não mudou o resultado. Coordenada de outro município com `municipio`
+vazio devolve **zero** cards — não use coordenada no lugar do nome.
 
 Dois dados ficam escondidos nos gatilhos de JavaScript do card, e o adaptador os
 lê: `findByGtin(<codigo>)` dá o **código de barras**, e
