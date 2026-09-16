@@ -56,6 +56,75 @@ def _erro(msg: str, **extra: Any) -> dict:
     return {"ok": False, "erro": msg, **extra}
 
 
+def _pastas_usuais() -> list[Path]:
+    """Onde uma planilha costuma estar, incluindo as versoes do OneDrive."""
+    casa = Path.home()
+    nomes = ["Documents", "Documentos", "Downloads", "Desktop",
+             "Area de Trabalho", "Área de Trabalho"]
+    achadas = []
+    for base in [casa] + sorted(casa.glob("OneDrive*")):
+        for n in nomes:
+            d = base / n
+            if d.is_dir():
+                achadas.append(d)
+        if base.is_dir() and base not in achadas:
+            achadas.append(base)
+    return achadas
+
+
+EXT_PLANILHA = (".xlsx", ".xlsm", ".csv", ".tsv")
+
+
+def _chave(texto: str) -> str:
+    """
+    Nome comparavel: sem acento, sem separador, minusculo.
+
+    Quem pede "cota a lista de compras" digita espaco; o arquivo no disco se
+    chama "lista-de-compras.xlsx". Sem isto, nada casa.
+    """
+    return "".join(c for c in bp.sem_acento(str(texto or "")).lower()
+                   if c.isalnum())
+
+
+def _resolver_planilha(referencia: str) -> tuple[Path | None, list[Path]]:
+    """
+    Aceita caminho completo OU so o nome, ate parcial.
+
+    Exigir caminho completo do Windows de quem so quer cotar uma lista e
+    atrito a toa: "cota a lista de compras" tem de bastar. Devolve
+    (arquivo, candidatos) -- com mais de um candidato, quem escolhe e a pessoa.
+    """
+    ref = (referencia or "").strip().strip('"').strip("'")
+    if not ref:
+        return None, []
+    direto = Path(ref).expanduser()
+    if direto.is_file():
+        return direto, [direto]
+
+    raiz = _chave(direto.stem)
+    if not raiz:
+        return None, []
+
+    candidatos: list[Path] = []
+    vistos: set[str] = set()
+    for pasta in _pastas_usuais():
+        try:
+            for arq in pasta.iterdir():
+                if (arq.is_file() and arq.suffix.lower() in EXT_PLANILHA
+                        and raiz in _chave(arq.stem)
+                        and str(arq).lower() not in vistos
+                        # o Excel deixa ~$lista.xlsx aberto enquanto edita
+                        and not arq.name.startswith("~$")):
+                    vistos.add(str(arq).lower())
+                    candidatos.append(arq)
+        except OSError:
+            continue
+    candidatos.sort(key=lambda a: a.stat().st_mtime, reverse=True)
+    if len(candidatos) == 1:
+        return candidatos[0], candidatos
+    return None, candidatos
+
+
 def _checar_uf(uf: str) -> str | None:
     if uf.upper() not in UFS:
         return None
@@ -77,15 +146,23 @@ def cotar_planilha(
     uf: str = "AM",
     municipio: str = "",
     pasta_saida: str = "",
+    abrir_pdf: bool = True,
 ) -> dict:
     """Fluxo completo: le, consulta o portal, grava PDF + XLSX + JSON."""
     uf_ok = _checar_uf(uf)
     if not uf_ok:
         return _erro("UF nao suportada: %r. Esta ferramenta cobre %s."
                      % (uf, " e ".join(UFS)))
-    planilha = Path(caminho_planilha).expanduser()
-    if not planilha.is_file():
-        return _erro("nao encontrei a planilha", caminho=str(planilha))
+    planilha, candidatos = _resolver_planilha(caminho_planilha)
+    if planilha is None:
+        if candidatos:
+            return _erro(
+                "achei mais de uma planilha com esse nome; diga qual",
+                candidatos=[str(c) for c in candidatos[:8]])
+        return _erro(
+            "nao encontrei essa planilha. Passe o caminho completo, ou salve o "
+            "arquivo em Documentos/Downloads/Area de Trabalho e chame pelo nome.",
+            procurei_em=[str(d) for d in _pastas_usuais()])
 
     municipio = municipio or PADRAO_MUNICIPIO[uf_ok]
     destino = Path(pasta_saida).expanduser() if pasta_saida else planilha.parent
@@ -135,10 +212,22 @@ def cotar_planilha(
             ),
         }
 
+    # abre no visualizador padrao: o relatorio e o entregavel, e caminho de
+    # arquivo no Windows e chato de copiar da conversa
+    aberto = False
+    if abrir_pdf and arquivos.get("pdf"):
+        try:
+            os.startfile(arquivos["pdf"])       # noqa: S606  (Windows)
+            aberto = True
+        except Exception:
+            aberto = False
+
     return {
         "ok": True,
         "municipio": municipio,
         "uf": uf_ok,
+        "planilha_lida": str(planilha),
+        "pdf_aberto_na_tela": aberto,
         "arquivos": arquivos,
         "resumo": resumo,
         "leia_o_pdf": arquivos.get("pdf", ""),
@@ -207,6 +296,45 @@ def consultar_produto(
                      "A lista nao foi filtrada por correspondencia de produto: "
                      "confira se cada item e mesmo o que voce procura."),
     }
+
+
+@mcp.tool(
+    title="Listar planilhas",
+    description=(
+        "Lista as planilhas que estao nas pastas usuais (Documentos, Downloads, "
+        "Area de Trabalho). Use quando a pessoa nao souber o caminho do arquivo "
+        "ou disser algo vago como 'cota a minha lista'."
+    ),
+)
+def listar_planilhas(filtro: str = "", limite: int = 20) -> dict:
+    """As planilhas ao alcance, da mais recente para a mais antiga."""
+    f = _chave(filtro)
+    achadas: list[dict] = []
+    vistos: set[str] = set()
+    for pasta in _pastas_usuais():
+        try:
+            for arq in pasta.iterdir():
+                if (arq.is_file() and arq.suffix.lower() in EXT_PLANILHA
+                        and not arq.name.startswith("~$")
+                        and (not f or f in _chave(arq.stem))
+                        and str(arq).lower() not in vistos):
+                    vistos.add(str(arq).lower())
+                    achadas.append({
+                        "nome": arq.name,
+                        "caminho": str(arq),
+                        "pasta": str(arq.parent),
+                        "modificada_em": __import__("datetime").datetime
+                        .fromtimestamp(arq.stat().st_mtime)
+                        .strftime("%d/%m/%Y %H:%M"),
+                        "_ordem": arq.stat().st_mtime,
+                    })
+        except OSError:
+            continue
+    achadas.sort(key=lambda a: a["_ordem"], reverse=True)
+    for a in achadas:
+        a.pop("_ordem", None)
+    return {"ok": True, "encontradas": len(achadas),
+            "planilhas": achadas[:max(1, min(limite, 60))]}
 
 
 @mcp.tool(
