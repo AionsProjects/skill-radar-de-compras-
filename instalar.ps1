@@ -124,11 +124,24 @@ Ok 'dependencias instaladas'
 # ---------------------------------------------------------------------------
 $script = Join-Path $PASTA 'busca_preco.py'
 if (-not (Test-Path $script)) {
-    # o instalador tambem funciona rodado de dentro da pasta clonada
     $local = Join-Path $PSScriptRoot 'busca_preco.py'
     if (Test-Path $local) {
-        $script = $local
-        Aviso "usando $PSScriptRoot (a skill so aparece no Claude Code se estiver em $PASTA)"
+        # COPIA, nao so avisa. O Claude Code so enxerga skill dentro de
+        # .claude\skills, e nao ha razao para a pessoa ter de saber disso: o
+        # caminho natural e clonar numa pasta qualquer. Antes ficava um aviso
+        # amarelo facil de perder, e no fim o instalador ainda prometia
+        # /busca-preco -- que nunca ia aparecer.
+        Titulo 'Instalando a skill onde o Claude Code procura'
+        New-Item -ItemType Directory -Force -Path $PASTA | Out-Null
+        Get-ChildItem -Path $PSScriptRoot -Force -Exclude '.git' |
+            Copy-Item -Destination $PASTA -Recurse -Force
+        $script = Join-Path $PASTA 'busca_preco.py'
+        if (Test-Path $script) {
+            Ok "skill copiada para $PASTA"
+        } else {
+            $script = $local
+            Aviso "nao consegui copiar para $PASTA; a skill vai funcionar so no Desktop"
+        }
     } else {
         Erro "nao achei busca_preco.py em $PASTA"
         Write-Host ''
@@ -192,9 +205,11 @@ Write-Host ''
 if ($codigo -eq 0) {
     Write-Host 'Tudo pronto.' -ForegroundColor Green
     Write-Host ''
-    Write-Host '  No Claude Code:'
-    Write-Host '  1. Reinicie o Claude Code (a skill so aparece em sessao nova).'
-    Write-Host '  2. Use:  /busca-preco minha-lista.xlsx AM'
+    if (Test-Path $script) {
+        Write-Host '  No Claude Code:'
+        Write-Host '  1. Reinicie o Claude Code (a skill so aparece em sessao nova).'
+        Write-Host '  2. Use:  /busca-preco minha-lista.xlsx AM'
+    }
     if ($temDesktop) {
         Write-Host ''
         Write-Host '  No Claude Desktop:'

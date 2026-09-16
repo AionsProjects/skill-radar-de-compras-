@@ -54,6 +54,10 @@ Pule para o passo 6.
 
 6. **Feche e abra o Claude Desktop.**
 
+> O instalador copia a ferramenta para `.claude\skillsusca-preco`, que é
+> onde o Claude Code procura. Você pode clonar ou descompactar onde quiser: ele
+> se encarrega de pôr no lugar certo.
+
 ---
 
 ## Como usar
